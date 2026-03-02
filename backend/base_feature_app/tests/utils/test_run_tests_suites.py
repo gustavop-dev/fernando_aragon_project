@@ -5,6 +5,7 @@ import importlib.util
 import json
 import sys
 import types
+from functools import partial
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -98,59 +99,78 @@ def _make_tracking_executor(state: dict):
     return _TrackingExecutor
 
 
-def test_load_resume_summary_returns_none_when_missing(tmp_path):
+def test_load_resume_state_returns_none_when_missing(tmp_path):
     summary_path = tmp_path / run_tests_all_suites.RESUME_FILENAME
 
-    assert run_tests_all_suites.load_resume_summary(summary_path) is None
+    assert run_tests_all_suites.load_resume_state(summary_path) is None
 
 
-def test_extract_resume_entries_returns_named_entries():
-    summary = {
-        "suites": [
-            {"name": "backend", "status": "ok"},
-            {"status": "failed"},
-            "invalid",
-        ]
+def test_select_suites_for_resume_filters_non_ok():
+    suite_runners = [
+        ("backend", partial(make_step_result, "backend")),
+        ("frontend-unit", partial(make_step_result, "frontend-unit")),
+    ]
+    resume_state = {
+        "suites": {
+            "backend": {"status": "ok"},
+            "frontend-unit": {"status": "failed"},
+        }
     }
 
-    entries = run_tests_all_suites.extract_resume_entries(summary)
+    selected, all_passed = run_tests_all_suites.select_suites_for_resume(
+        suite_runners,
+        resume_state,
+    )
 
-    assert entries == {"backend": {"name": "backend", "status": "ok"}}
+    assert [name for name, _runner in selected] == ["frontend-unit"]
+    assert all_passed is False
 
 
-def test_resume_status_returns_unknown_for_missing_entry():
+def test_resolve_resume_status_returns_unknown_for_missing_record():
     entry = None
 
-    result = run_tests_all_suites.resume_status(entry)
+    result = run_tests_all_suites.resolve_resume_status(entry)
 
     assert result == "unknown"
 
 
-def test_resume_status_uses_status_value():
+def test_resolve_resume_status_uses_status_value():
     entry = {"status": "failed", "returncode": 0}
 
-    assert run_tests_all_suites.resume_status(entry) == "failed"
+    assert run_tests_all_suites.resolve_resume_status(entry) == "failed"
 
 
-def test_resume_status_uses_returncode_when_status_missing():
+def test_resolve_resume_status_uses_returncode_when_status_missing():
     entry = {"returncode": 0}
 
-    assert run_tests_all_suites.resume_status(entry) == "ok"
+    assert run_tests_all_suites.resolve_resume_status(entry) == "ok"
 
 
-def test_resolve_log_path_returns_relative_for_child_path(tmp_path):
-    repo_root = tmp_path
+def test_build_suite_summary_sets_log_path_string(tmp_path):
     log_path = tmp_path / "reports" / "suite.log"
+    result = make_step_result("backend", log_path=log_path)
 
-    assert run_tests_all_suites.resolve_log_path(log_path, repo_root) == "reports/suite.log"
+    summary = run_tests_all_suites.build_suite_summary(result)
+
+    assert summary["log_path"] == str(log_path)
 
 
-def test_resolve_log_path_returns_absolute_for_external_path(tmp_path):
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir()
-    log_path = tmp_path / "outside.log"
+def test_resolve_backend_coverage_root_prefers_core_app(tmp_path):
+    backend_root = tmp_path / "backend"
+    core_root = backend_root / "core_app"
+    base_root = backend_root / "base_feature_app"
+    base_root.mkdir(parents=True)
+    core_root.mkdir()
 
-    assert run_tests_all_suites.resolve_log_path(log_path, repo_root) == str(log_path)
+    assert run_tests_all_suites.resolve_backend_coverage_root(backend_root) == core_root
+
+
+def test_resolve_backend_coverage_root_falls_back_to_base_feature_app(tmp_path):
+    backend_root = tmp_path / "backend"
+    base_root = backend_root / "base_feature_app"
+    base_root.mkdir(parents=True)
+
+    assert run_tests_all_suites.resolve_backend_coverage_root(backend_root) == base_root
 
 
 def test_read_backend_summary_returns_statements_branches_functions_lines_total(
@@ -169,28 +189,30 @@ def test_read_backend_summary_returns_statements_branches_functions_lines_total(
         encoding="utf-8",
     )
 
-    report_payload = {
-        "totals": {
-            "num_statements": 10,
-            "missing_lines": 2,
-            "covered_lines": 8,
-            "percent_covered": 78.57,
-            "percent_covered_lines": 80.0,
-            "num_lines": 10,
-            "num_branches": 4,
-            "missing_branches": 1,
-            "covered_branches": 3,
-        },
-        "files": {
-            "backend/base_feature_app/sample.py": {},
-        },
-    }
+    class FakeNumbers:
+        n_statements = 10
+        n_missing = 2
+        n_branches = 4
+        n_missing_branches = 1
+
+    class FakeAnalysis:
+        numbers = FakeNumbers()
+        executed = {1, 2}
+
+    class FakeRegion:
+        def __init__(self, lines):
+            self.kind = "function"
+            self.lines = lines
+
+    class FakeFileReporter:
+        @staticmethod
+        def code_regions():
+            return [FakeRegion({1, 2}), FakeRegion({10})]
 
     class FakeCoverageData:
-        def lines(self, filename):
-            if str(filename).endswith("sample.py"):
-                return [2]
-            return []
+        @staticmethod
+        def measured_files():
+            return [str(sample_path)]
 
     class FakeCoverage:
         def __init__(self, data_file):
@@ -199,11 +221,16 @@ def test_read_backend_summary_returns_statements_branches_functions_lines_total(
         def load(self):
             return None
 
-        def json_report(self, outfile, omit, ignore_errors):
-            Path(outfile).write_text(json.dumps(report_payload), encoding="utf-8")
-
         def get_data(self):
             return FakeCoverageData()
+
+        @staticmethod
+        def _analyze(_filepath):
+            return FakeAnalysis()
+
+        @staticmethod
+        def _get_file_reporter(_filepath):
+            return FakeFileReporter()
 
     fake_module = types.ModuleType("coverage")
     fake_module.Coverage = FakeCoverage
@@ -221,7 +248,7 @@ def test_read_backend_summary_returns_statements_branches_functions_lines_total(
     assert "Lines:" in lines[3]
     assert "(8/10)" in lines[3]
     assert "Total:" in lines[4]
-    assert "(20/26)" in lines[4]
+    assert "78.57%" in lines[4]
 
 
 def test_read_flow_summary_formats_flow_percent(tmp_path):
@@ -246,17 +273,21 @@ def test_read_flow_summary_formats_flow_percent(tmp_path):
 
     assert len(lines) == 3
     assert "Flows covered: 7/10" in lines[0]
+    assert "(70.00%)" in lines[0]
     assert "Partial: 1" in lines[1]
     assert "Missing: 2" in lines[2]
 
 
 def test_run_backend_triggers_erase_when_enabled(tmp_path, monkeypatch):
     calls = []
+    captured = {}
+    (tmp_path / "base_feature_app").mkdir()
 
-    def fake_erase(root, quiet):
-        calls.append((root, quiet))
+    def fake_erase(root):
+        calls.append(root)
 
-    def fake_run_command(**_kwargs):
+    def fake_run_command(**kwargs):
+        captured.update(kwargs)
         return make_step_result("backend")
 
     monkeypatch.setattr(run_tests_all_suites, "erase_backend_coverage_data", fake_erase)
@@ -270,20 +301,25 @@ def test_run_backend_triggers_erase_when_enabled(tmp_path, monkeypatch):
         quiet=True,
         append_log=False,
         run_id=None,
-        coverage=True,
+        show_coverage=True,
     )
 
-    assert calls == [(tmp_path, True)]
+    assert calls == [tmp_path]
+    assert f"--cov={tmp_path / 'base_feature_app'}" in captured["command"]
+    assert "--cov-report=term-missing" in captured["command"]
     assert result.name == "backend"
 
 
 def test_run_backend_skips_erase_when_disabled(tmp_path, monkeypatch):
     calls = []
+    captured = {}
+    (tmp_path / "base_feature_app").mkdir()
 
     def fake_erase(*_args, **_kwargs):
         calls.append("called")
 
-    def fake_run_command(**_kwargs):
+    def fake_run_command(**kwargs):
+        captured.update(kwargs)
         return make_step_result("backend")
 
     monkeypatch.setattr(run_tests_all_suites, "erase_backend_coverage_data", fake_erase)
@@ -297,86 +333,69 @@ def test_run_backend_skips_erase_when_disabled(tmp_path, monkeypatch):
         quiet=False,
         append_log=False,
         run_id=None,
-        coverage=False,
+        show_coverage=False,
     )
 
     assert calls == []
+    assert "--cov-report=term-missing" not in captured["command"]
     assert result.name == "backend"
 
 
-def test_erase_backend_data_warns_on_failure(tmp_path, monkeypatch):
-    messages = []
+def test_erase_backend_data_uses_coverage_module(tmp_path, monkeypatch):
     captured = {}
 
-    class FakeResult:
-        returncode = 2
-        stdout = "boom stdout"
-        stderr = "boom stderr"
+    class FakeCoverage:
+        def __init__(self, data_file):
+            captured["data_file"] = data_file
 
-    def fake_run(cmd, cwd, capture_output, text):
-        captured["cmd"] = cmd
-        captured["cwd"] = cwd
-        captured["capture_output"] = capture_output
-        captured["text"] = text
-        return FakeResult()
+        def erase(self):
+            captured["erased"] = True
 
-    def fake_print(*args, **_kwargs):
-        messages.append(" ".join(str(arg) for arg in args))
+    fake_module = types.ModuleType("coverage")
+    fake_module.Coverage = FakeCoverage
+    monkeypatch.setitem(sys.modules, "coverage", fake_module)
 
-    monkeypatch.setattr(run_tests_all_suites.subprocess, "run", fake_run)
-    monkeypatch.setattr(builtins, "print", fake_print)
+    run_tests_all_suites.erase_backend_coverage_data(tmp_path)
 
-    run_tests_all_suites.erase_backend_coverage_data(tmp_path, quiet=False)
-
-    assert captured["cmd"] == [sys.executable, "-m", "coverage", "erase"]
-    assert captured["cwd"] == tmp_path
-    assert captured["capture_output"] is True
-    assert captured["text"] is True
-    assert any("coverage erase failed" in msg for msg in messages)
-    assert any("boom stdout" in msg for msg in messages)
-    assert any("boom stderr" in msg for msg in messages)
+    assert captured["data_file"] == str(tmp_path / ".coverage")
+    assert captured["erased"] is True
 
 
-def test_build_log_header_includes_suite_metadata():
-    header = run_tests_all_suites.build_log_header("run123", "backend", ["pytest", "-q"])
+def test_build_log_separator_includes_suite_metadata():
+    header = run_tests_all_suites.build_log_separator("run123", "backend", ["pytest", "-q"])
 
-    assert "Resume run: run123" in header
+    assert "Run ID: run123" in header
     assert "Suite: backend" in header
     assert "Command: pytest -q" in header
     assert "Timestamp:" in header
 
 
-def test_build_resume_summary_orders_suites(tmp_path):
-    """build_resume_summary preserves suite_order and records log_path relative to repo_root."""
-    repo_root = tmp_path
-    backend_log = repo_root / "backend.log"
+def test_record_suite_result_writes_resume_file(tmp_path):
+    resume_path = tmp_path / "reports" / run_tests_all_suites.RESUME_FILENAME
+    backend_log = tmp_path / "backend.log"
     result_backend = make_step_result("backend", log_path=backend_log)
-    result_unit = make_step_result("frontend-unit", status="failed", returncode=1)
-    result_e2e = make_step_result("frontend-e2e")
 
-    payload = run_tests_all_suites.build_resume_summary(
-        [result_unit, result_backend, result_e2e],
+    payload = run_tests_all_suites.record_suite_result(
+        resume_path,
+        resume_state=None,
+        result=result_backend,
         run_id="run123",
-        repo_root=repo_root,
-        suite_order=["backend", "frontend-unit", "frontend-e2e"],
-        existing_entries=None,
     )
 
-    suites = payload["suites"]
+    saved = json.loads(resume_path.read_text(encoding="utf-8"))
+    suite_payload = saved["suites"]["backend"]
 
     assert payload["run_id"] == "run123"
-    assert payload["generated_at"]
-    assert suites[0]["name"] == "backend"
-    assert suites[1]["name"] == "frontend-unit"
-    assert suites[2]["name"] == "frontend-e2e"
-    assert suites[0]["log_path"] == "backend.log"
+    assert saved["run_id"] == "run123"
+    assert suite_payload["suite"] == "backend"
+    assert suite_payload["log_path"] == str(backend_log)
+    assert saved["updated_at"]
 
 
-def test_run_command_writes_log_header(tmp_path):
-    """run_command prepends the log header and captures subprocess output in the log file."""
+def test_run_command_writes_log_separator(tmp_path):
+    """run_command prepends the log separator and captures subprocess output in the log file."""
     log_path = tmp_path / "suite.log"
     command = [sys.executable, "-c", "print('hello')"]
-    header = run_tests_all_suites.build_log_header("run123", "backend", command)
 
     result = run_tests_all_suites.run_command(
         name="backend",
@@ -385,15 +404,38 @@ def test_run_command_writes_log_header(tmp_path):
         log_path=log_path,
         append_log=True,
         quiet=True,
-        log_header=header,
+        run_id="run123",
     )
 
     assert result.status == "ok"
     content = log_path.read_text(encoding="utf-8")
-    assert "Resume run: run123" in content
+    assert "Run ID: run123" in content
     assert "Suite: backend" in content
     assert "Command:" in content
     assert "hello" in content
+
+
+def test_extract_backend_report_table_reads_header(tmp_path):
+    log_path = tmp_path / "backend.log"
+    log_path.write_text(
+        "\n".join(
+            [
+                "random line",
+                "===================== Coverage Report  (production files) =====================",
+                "File  Stmts  Miss  Cover  Bar",
+                "base_feature_app/sample.py  1  0  100%  ██████",
+                "===================== 24 passed in 2.0s =====================",
+                "tail line",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    lines = run_tests_all_suites.extract_backend_coverage_table(log_path)
+
+    assert len(lines) == 3
+    assert "Coverage Report" in lines[0]
+    assert "base_feature_app/sample.py" in lines[2]
 
 
 def test_main_runs_sequential_by_default(tmp_path, monkeypatch):
@@ -440,7 +482,7 @@ def test_main_runs_sequential_by_default(tmp_path, monkeypatch):
     assert exit_code == 0
     assert calls == ["backend", "frontend-unit", "frontend-e2e"]
     assert append_logs == [False, False, False]
-    assert quiet_flags == [False, False, False]
+    assert quiet_flags == [True, True, True]
 
 
 def test_main_parallel_verbose_sets_quiet_false(tmp_path, monkeypatch):
@@ -598,17 +640,15 @@ def test_main_resume_runs_suites_when_summary_missing(tmp_path, monkeypatch):
 def test_main_resume_exits_when_suites_ok(tmp_path, monkeypatch):
     """--resume skips execution and exits 0 when the summary file shows all suites passed."""
     resume_path = tmp_path / run_tests_all_suites.RESUME_FILENAME
-    results = [
-        make_step_result("backend"),
-        make_step_result("frontend-unit"),
-        make_step_result("frontend-e2e"),
-    ]
-    summary = run_tests_all_suites.build_resume_summary(
-        results,
-        run_id="run123",
-        repo_root=tmp_path,
-        suite_order=["backend", "frontend-unit", "frontend-e2e"],
-    )
+    summary = {
+        "run_id": "run123",
+        "schema_version": 1,
+        "suites": {
+            "backend": {"status": "ok"},
+            "frontend-unit": {"status": "ok"},
+            "frontend-e2e": {"status": "ok"},
+        },
+    }
     resume_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     printed = []
@@ -631,23 +671,21 @@ def test_main_resume_exits_when_suites_ok(tmp_path, monkeypatch):
     exit_code = run_tests_all_suites.main()
 
     assert exit_code == 0
-    assert "All suites passed in the last run" in " ".join(printed)
+    assert "Todas las suites ya pasaron" in " ".join(printed)
 
 
 def test_main_resume_runs_failed_suites_only(tmp_path, monkeypatch):
     """--resume re-runs only the suites marked failed in the existing summary file."""
     resume_path = tmp_path / run_tests_all_suites.RESUME_FILENAME
-    results = [
-        make_step_result("backend"),
-        make_step_result("frontend-unit", status="failed", returncode=1),
-        make_step_result("frontend-e2e"),
-    ]
-    summary = run_tests_all_suites.build_resume_summary(
-        results,
-        run_id="run123",
-        repo_root=tmp_path,
-        suite_order=["backend", "frontend-unit", "frontend-e2e"],
-    )
+    summary = {
+        "run_id": "run123",
+        "schema_version": 1,
+        "suites": {
+            "backend": {"status": "ok"},
+            "frontend-unit": {"status": "failed", "returncode": 1},
+            "frontend-e2e": {"status": "ok"},
+        },
+    }
     resume_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     calls = []
@@ -713,3 +751,4 @@ def test_main_writes_resume_summary_file(tmp_path, monkeypatch):
 
     assert exit_code == 0
     assert payload["run_id"]
+    assert set(payload["suites"].keys()) == {"backend", "frontend-unit", "frontend-e2e"}

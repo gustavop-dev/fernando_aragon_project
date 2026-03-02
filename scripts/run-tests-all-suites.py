@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import os
 import re
@@ -10,20 +9,16 @@ import shlex
 import subprocess
 import sys
 import threading
-import tempfile
 import time
 import uuid
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 TAIL_LINES = 40
-RESUME_FILENAME = "last-run.json"
-VALID_STATUSES = {"ok", "failed"}
 
 # ── ANSI helpers ─────────────────────────────────────────────────────────────
 _COLOR = os.environ.get("NO_COLOR") is None and sys.stdout.isatty()
@@ -38,39 +33,93 @@ def _red(t: str) -> str:     return _c("31", t)
 def _yellow(t: str) -> str:  return _c("33", t)
 def _cyan(t: str) -> str:    return _c("36", t)
 
-_RE_COVERAGE_SUMMARY = re.compile(
-    r'^(\s*(?:Statements|Branches|Functions|Lines)\s*:\s*)(\d+(?:\.\d+)?)(%.*)$'
-)
+def _pct_color(pct: float) -> Callable[[str], str]:
+    if pct >= 80:
+        return _green
+    if pct >= 50:
+        return _yellow
+    return _red
 
 
-def _color_for_pct(pct: float, text: str) -> str:
-    if pct > 80.0:
-        return _green(text)
-    if pct >= 50.0:
-        return _yellow(text)
-    return _red(text)
+_BACKEND_COV_RE = re.compile(r'(\d+\.?\d*)%((\s+)(\[[^\]]*\]))?')
+_JEST_SEP_RE = re.compile(r'^[\s\-|]+$')
+_JEST_DATA_PCT_RE = re.compile(r'^\s*(\d+\.?\d*)\s*$')
+_JEST_SUMMARY_LINE_RE = re.compile(r'(Statements|Branches|Functions|Lines)\s*:\s*(\d+\.?\d*)%')
+_SUMMARY_PCT_RE = re.compile(r'(\d+\.?\d*)%')
 
 
-def _colorize_coverage_output_line(line: str) -> str:
-    if not _COLOR:
+def colorize_backend_line(line: str) -> str:
+    stripped = line.strip()
+    if stripped.startswith('=') and 'COVERAGE' in stripped:
+        return _bold(line)
+    if 'fully covered' in stripped:
+        return _bold(_green(line))
+    m = _BACKEND_COV_RE.search(line)
+    if not m:
         return line
-    stripped = line.rstrip("\n")
-    m = _RE_COVERAGE_SUMMARY.match(stripped)
+    try:
+        pct = float(m.group(1))
+    except ValueError:
+        return line
+    color_fn = _pct_color(pct)
+    pct_colored = color_fn(f"{m.group(1)}%")
+    if m.group(4):
+        replacement = pct_colored + m.group(3) + _bold(color_fn(m.group(4)))
+    else:
+        replacement = pct_colored
+    return line[:m.start()] + replacement + line[m.end():]
+
+
+def colorize_jest_line(line: str) -> str:
+    stripped = line.strip()
+    if stripped.startswith('=') and ('Coverage summary' in stripped or not stripped.replace('=', '').strip()):
+        return _bold(line)
+    m = _JEST_SUMMARY_LINE_RE.search(line)
     if m:
-        pct = float(m.group(2))
-        return m.group(1) + _color_for_pct(pct, m.group(2) + m.group(3)) + "\n"
-    if "|" in stripped and not stripped.lstrip().startswith("-") and "% Stmts" not in stripped:
-        parts = stripped.split("|")
-        colored: list[str] = [parts[0]]
-        for part in parts[1:]:
-            cell = part.strip()
-            try:
-                val = float(cell)
-                colored.append(part.replace(cell, _color_for_pct(val, cell), 1))
-            except ValueError:
-                colored.append(part)
-        return "|".join(colored) + "\n"
+        try:
+            pct = float(m.group(2))
+        except ValueError:
+            return line
+        color_fn = _pct_color(pct)
+        pct_colored = color_fn(f"{m.group(2)}%")
+        return line[:m.start(2)] + pct_colored + line[m.end(2) + 1:]
+    if _JEST_SEP_RE.match(stripped) and '|' in stripped:
+        return _dim(line)
+    if 'File' in stripped and '% Stmts' in stripped:
+        return _bold(line)
+    if '|' in line:
+        parts = line.split('|')
+        if len(parts) >= 5:
+            colorized = [parts[0]]
+            for i, part in enumerate(parts[1:], 1):
+                if i <= 4:
+                    pm = _JEST_DATA_PCT_RE.match(part)
+                    if pm:
+                        try:
+                            pct = float(pm.group(1))
+                        except ValueError:
+                            colorized.append(part)
+                            continue
+                        color_fn = _pct_color(pct)
+                        colorized.append(part.replace(pm.group(1), color_fn(pm.group(1)), 1))
+                    else:
+                        colorized.append(part)
+                else:
+                    colorized.append(part)
+            return '|'.join(colorized)
     return line
+
+
+def colorize_coverage_summary_line(line: str) -> str:
+    m = _SUMMARY_PCT_RE.search(line)
+    if not m:
+        return _dim(line)
+    try:
+        pct = float(m.group(1))
+    except ValueError:
+        return _dim(line)
+    color_fn = _pct_color(pct)
+    return line[:m.start()] + color_fn(f"{m.group(1)}%") + line[m.end():]
 
 
 _SPINNER = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
@@ -159,6 +208,179 @@ class StepResult:
     log_path: Path | None = None
 
 
+RESUME_FILENAME = "last-run.json"
+VALID_STATUSES = {"ok", "failed"}
+SUITE_LOG_FILES = {
+    "backend": "backend.log",
+    "frontend-unit": "frontend-unit.log",
+    "frontend-e2e": "frontend-e2e.log",
+}
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run backend pytest, frontend unit, and E2E tests with reporting. "
+            "Defaults to sequential execution; use --parallel to run concurrently."
+        )
+    )
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument("--verbose", action="store_true",
+                              help="Show full per-test output (default: only summary tables)")
+    output_group.add_argument("--quiet", action="store_true",
+                              help="(default) Suppress per-test output, show only summary tables")
+    parser.add_argument("--backend-markers", default="",
+                        help="pytest marker expression (-m)")
+    parser.add_argument("--backend-args", default="",
+                        help="Extra args forwarded to pytest")
+    parser.add_argument("--unit-args", default="",
+                        help="Extra args forwarded to Jest")
+    parser.add_argument("--e2e-args", default="",
+                        help="Extra args forwarded to Playwright")
+    parser.add_argument("--unit-workers", default=None,
+                        help="Jest --maxWorkers value (default: auto)")
+    parser.add_argument("--e2e-workers", default=None,
+                        help="Playwright --workers value (default: per config)")
+    parser.add_argument("--skip-backend", action="store_true")
+    parser.add_argument("--skip-unit", action="store_true")
+    parser.add_argument("--skip-e2e", action="store_true")
+    parser.add_argument("--parallel", action="store_true",
+                        help="Run suites in parallel instead of sequentially")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from last-run.json and re-run failed/unknown suites")
+    parser.add_argument("--coverage", action="store_true",
+                        help="Show per-suite coverage report in the final summary (default: off)")
+    parser.add_argument("--report-dir", default="test-reports")
+    return parser
+
+
+def _timestamp() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def create_run_id() -> str:
+    return uuid.uuid4().hex
+
+
+def build_log_separator(run_id: str | None, name: str, command: Sequence[str]) -> str:
+    command_text = " ".join(str(item) for item in command)
+    run_id_value = run_id or "unknown"
+    return (
+        "\n"
+        + "=" * 80
+        + "\n"
+        + f"Run ID: {run_id_value}\n"
+        + f"Timestamp: {_timestamp()}\n"
+        + f"Suite: {name}\n"
+        + f"Command: {command_text}\n"
+        + "=" * 80
+        + "\n"
+    )
+
+
+def _ensure_resume_state(state: dict[str, object] | None) -> dict[str, object]:
+    if not isinstance(state, dict):
+        state = {}
+    if not isinstance(state.get("suites"), dict):
+        state["suites"] = {}
+    if not isinstance(state.get("schema_version"), int):
+        state["schema_version"] = 1
+    return state
+
+
+def load_resume_state(path: Path) -> dict[str, object] | None:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def write_resume_state(path: Path, state: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def clear_resume_state(path: Path) -> None:
+    if path.exists():
+        path.unlink()
+
+
+def clear_suite_logs(report_dir: Path, suite_names: Sequence[str]) -> None:
+    if not report_dir.exists():
+        return
+    for name in suite_names:
+        log_name = SUITE_LOG_FILES.get(name)
+        if not log_name:
+            continue
+        log_path = report_dir / log_name
+        if log_path.exists():
+            log_path.unlink()
+
+
+def resolve_resume_status(record: object) -> str:
+    if not isinstance(record, dict):
+        return "unknown"
+    status = record.get("status")
+    if isinstance(status, str):
+        normalized = status.lower()
+        if normalized in VALID_STATUSES:
+            return normalized
+    returncode = record.get("returncode")
+    if isinstance(returncode, int):
+        return "ok" if returncode == 0 else "failed"
+    return "unknown"
+
+
+def select_suites_for_resume(
+    suite_runners: Sequence[tuple[str, partial[StepResult]]],
+    resume_state: dict[str, object] | None,
+) -> tuple[list[tuple[str, partial[StepResult]]], bool]:
+    if not isinstance(resume_state, dict):
+        return list(suite_runners), False
+    suites = resume_state.get("suites")
+    if not isinstance(suites, dict):
+        return list(suite_runners), False
+    selected: list[tuple[str, partial[StepResult]]] = []
+    for name, runner in suite_runners:
+        status = resolve_resume_status(suites.get(name))
+        if status != "ok":
+            selected.append((name, runner))
+    all_passed = len(selected) == 0 and len(suite_runners) > 0
+    return selected, all_passed
+
+
+def build_suite_summary(result: StepResult) -> dict[str, object]:
+    return {
+        "suite": result.name,
+        "status": result.status,
+        "returncode": result.returncode,
+        "duration": result.duration,
+        "command": result.command,
+        "timestamp": _timestamp(),
+        "log_path": str(result.log_path) if result.log_path else None,
+    }
+
+
+def record_suite_result(
+    resume_path: Path,
+    resume_state: dict[str, object] | None,
+    result: StepResult,
+    run_id: str | None = None,
+) -> dict[str, object]:
+    state = _ensure_resume_state(resume_state)
+    suites = state["suites"]
+    if isinstance(suites, dict):
+        suites[result.name] = build_suite_summary(result)
+    if run_id:
+        state["run_id"] = run_id
+    state["updated_at"] = _timestamp()
+    write_resume_state(resume_path, state)
+    return state
+
+
 def split_args(value: str | None) -> list[str]:
     if not value:
         return []
@@ -171,175 +393,123 @@ def _format_pct(value: object) -> str:
     return str(value)
 
 
-def erase_backend_coverage_data(backend_root: Path, quiet: bool) -> None:
-    cmd = [sys.executable, "-m", "coverage", "erase"]
+def resolve_backend_coverage_root(backend_root: Path) -> Path:
+    core_path = backend_root / "core_app"
+    if core_path.exists():
+        return core_path
+    base_path = backend_root / "base_feature_app"
+    if base_path.exists():
+        return base_path
+    return core_path
+
+
+def erase_backend_coverage_data(backend_root: Path) -> None:
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=backend_root,
-            capture_output=True,
-            text=True,
-        )
-    except OSError as exc:
-        if not quiet:
-            print(_red(f"Failed to run coverage erase: {exc}"))
+        import coverage as coverage_module
+    except ImportError:
         return
-    if result.returncode != 0 and not quiet:
-        print(_red(f"coverage erase failed (exit {result.returncode})"))
-        if result.stdout:
-            print(result.stdout, end="")
-        if result.stderr:
-            print(result.stderr, end="")
+
+    try:
+        cov = coverage_module.Coverage(data_file=str(backend_root / ".coverage"))
+        cov.erase()
+    except Exception:
+        return
 
 
 def read_backend_coverage_summary(backend_root: Path) -> list[str]:
-    data_file = backend_root / ".coverage"
-    if not data_file.exists():
+    coverage_path = backend_root / ".coverage"
+    if not coverage_path.exists():
         return []
+    coverage_root = resolve_backend_coverage_root(backend_root)
+    coverage_token = coverage_root.name
     try:
         import coverage as coverage_module
     except ImportError:
         return []
     try:
-        cov = coverage_module.Coverage(data_file=str(data_file))
+        cov = coverage_module.Coverage(data_file=str(coverage_path))
         cov.load()
     except Exception:
         return []
 
-    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json")
-    os.close(tmp_fd)
     try:
-        cov.json_report(
-            outfile=tmp_path,
-            omit=[
-                "*/venv/*",
-                "*/migrations/*",
-                "*/tests/*",
-                "*/conftest*",
-                "*/__pycache__/*",
-            ],
-            ignore_errors=True,
-        )
-        report = json.loads(Path(tmp_path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-
-    totals = report.get("totals")
-    if not isinstance(totals, dict):
-        return []
-
-    lines: list[str] = []
-
-    def append_metric(label: str, covered: object, total: object, pct: object | None = None) -> None:
-        if not (isinstance(total, int) and total > 0 and isinstance(covered, int)):
-            return
-        if pct is None:
-            pct = (covered / total) * 100
-        pct_colored = _color_for_pct(float(pct), f"{_format_pct(pct)}%")
-        lines.append(f"{label}: {pct_colored} ({covered}/{total})")
-
-    def count_function_coverage(files: object, coverage_data: object) -> tuple[int, int] | None:
-        if not isinstance(files, dict) or coverage_data is None:
-            return None
-        total_functions = 0
-        covered_functions = 0
-        for raw_path in files:
-            if not isinstance(raw_path, str):
-                continue
-            file_path = Path(raw_path)
-            if not file_path.is_absolute():
-                candidates = [backend_root / file_path, backend_root.parent / file_path]
-                file_path = next((candidate for candidate in candidates if candidate.exists()), file_path)
-            if file_path.suffix != ".py":
-                continue
-            try:
-                source = file_path.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            try:
-                tree = ast.parse(source)
-            except SyntaxError:
-                continue
-            executed_lines = coverage_data.lines(raw_path)
-            if executed_lines is None:
-                executed_lines = coverage_data.lines(str(file_path))
-            executed_set = set(executed_lines or [])
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    lineno = getattr(node, "lineno", None)
-                    end_lineno = getattr(node, "end_lineno", None)
-                    if not isinstance(lineno, int):
-                        continue
-                    if not isinstance(end_lineno, int):
-                        end_lineno = lineno
-                    total_functions += 1
-                    if end_lineno > lineno:
-                        lines_range = range(lineno + 1, end_lineno + 1)
-                    else:
-                        lines_range = range(lineno, end_lineno + 1)
-                    if any(line in executed_set for line in lines_range):
-                        covered_functions += 1
-        if total_functions == 0:
-            return None
-        return covered_functions, total_functions
-
-    try:
-        coverage_data = cov.get_data()
+        measured = cov.get_data().measured_files()
     except Exception:
-        coverage_data = None
+        return []
 
-    total_statements = totals.get("num_statements")
-    missing_lines = totals.get("missing_lines")
-    covered_lines = totals.get("covered_lines")
-    if isinstance(total_statements, int) and total_statements > 0:
-        if covered_lines is None and isinstance(missing_lines, int):
-            covered_lines = total_statements - missing_lines
-        append_metric("Statements", covered_lines, total_statements)
+    total_statements = 0
+    total_missing = 0
+    total_branches = 0
+    total_missing_branches = 0
+    total_functions = 0
+    total_missing_functions = 0
+    total_lines = 0
+    total_missing_lines = 0
 
-    total_branches = totals.get("num_branches")
-    missing_branches = totals.get("missing_branches")
-    covered_branches = totals.get("covered_branches")
-    if isinstance(total_branches, int) and total_branches > 0:
-        if covered_branches is None and isinstance(missing_branches, int):
-            covered_branches = total_branches - missing_branches
-        append_metric("Branches", covered_branches, total_branches)
+    for filepath in measured:
+        norm = filepath.replace("\\", "/")
+        if coverage_token not in norm or "/tests/" in norm:
+            continue
+        try:
+            analysis = cov._analyze(filepath)
+            file_reporter = cov._get_file_reporter(filepath)
+        except Exception:
+            continue
+        numbers = analysis.numbers
+        if numbers.n_statements == 0:
+            continue
 
-    functions_total = None
-    functions_covered = None
-    function_metrics = count_function_coverage(report.get("files"), coverage_data)
-    if function_metrics:
-        functions_covered, functions_total = function_metrics
-        append_metric("Functions", functions_covered, functions_total)
+        total_statements += numbers.n_statements
+        total_missing += numbers.n_missing
+        total_branches += numbers.n_branches
+        total_missing_branches += numbers.n_missing_branches
+        total_lines += numbers.n_statements
+        total_missing_lines += numbers.n_missing
 
-    total_lines = totals.get("num_lines")
-    line_total = total_lines if isinstance(total_lines, int) else total_statements
-    if isinstance(line_total, int) and isinstance(covered_lines, int):
-        line_pct = totals.get("percent_covered_lines")
-        append_metric("Lines", covered_lines, line_total, line_pct)
+        try:
+            regions = [
+                region
+                for region in file_reporter.code_regions()
+                if region.kind == "function" and region.lines
+            ]
+        except Exception:
+            regions = []
 
-    combined_total = 0
-    combined_covered = 0
-    if isinstance(total_statements, int) and isinstance(covered_lines, int):
-        combined_total += total_statements
-        combined_covered += covered_lines
-    if isinstance(total_branches, int) and isinstance(covered_branches, int):
-        combined_total += total_branches
-        combined_covered += covered_branches
-    if isinstance(functions_total, int) and isinstance(functions_covered, int):
-        combined_total += functions_total
-        combined_covered += functions_covered
-    if isinstance(line_total, int) and isinstance(covered_lines, int):
-        combined_total += line_total
-        combined_covered += covered_lines
-    if combined_total > 0:
-        append_metric("Total", combined_covered, combined_total)
+        if regions:
+            executed_lines = analysis.executed
+            functions_hit = sum(
+                1
+                for region in regions
+                if set(region.lines) & executed_lines
+            )
+            total_functions += len(regions)
+            total_missing_functions += len(regions) - functions_hit
 
-    return lines
+    if total_statements == 0:
+        return []
+
+    statements_covered = total_statements - total_missing
+    branches_covered = total_branches - total_missing_branches
+    functions_covered = total_functions - total_missing_functions
+    lines_covered = total_lines - total_missing_lines
+
+    def _pct(covered: int, total: int) -> float:
+        return (covered / total * 100) if total > 0 else 100.0
+
+    total_covered = statements_covered + branches_covered
+    total_possible = total_statements + total_branches
+
+    return [
+        f"Statements: {_format_pct(_pct(statements_covered, total_statements))}% "
+        f"({statements_covered}/{total_statements})",
+        f"Branches: {_format_pct(_pct(branches_covered, total_branches))}% "
+        f"({branches_covered}/{total_branches})",
+        f"Functions: {_format_pct(_pct(functions_covered, total_functions))}% "
+        f"({functions_covered}/{total_functions})",
+        f"Lines: {_format_pct(_pct(lines_covered, total_lines))}% "
+        f"({lines_covered}/{total_lines})",
+        f"Total: {_format_pct(_pct(total_covered, total_possible))}%",
+    ]
 
 
 def read_jest_coverage_summary(frontend_root: Path) -> list[str]:
@@ -369,8 +539,7 @@ def read_jest_coverage_summary(frontend_root: Path) -> list[str]:
         total_count = metric.get("total")
         if pct is None or covered is None or total_count is None:
             continue
-        pct_colored = _color_for_pct(float(pct), f"{_format_pct(pct)}%")
-        lines.append(f"{label}: {pct_colored} ({covered}/{total_count})")
+        lines.append(f"{label}: {_format_pct(pct)}% ({covered}/{total_count})")
     return lines
 
 
@@ -386,27 +555,33 @@ def read_flow_coverage_summary(frontend_root: Path) -> list[str]:
     if not isinstance(summary, dict):
         return []
 
-    total_flows = summary.get("total")
-    covered_flows = summary.get("covered")
-    partial_flows = summary.get("partial")
-    failing_flows = summary.get("failing")
-    missing_flows = summary.get("missing")
-
-    coverage_percent = None
-    if isinstance(total_flows, (int, float)) and total_flows > 0:
-        if isinstance(covered_flows, (int, float)):
-            coverage_percent = (covered_flows / total_flows) * 100
+    totals = summary.get("totals")
+    if isinstance(totals, dict):
+        total_flows = totals.get("total")
+        covered_flows = totals.get("covered")
+        partial_flows = totals.get("partial")
+        failing_flows = totals.get("failing")
+        missing_flows = totals.get("missing")
+        coverage_percent = summary.get("coveredPercent")
+    else:
+        total_flows = summary.get("total")
+        covered_flows = summary.get("covered")
+        partial_flows = summary.get("partial")
+        failing_flows = summary.get("failing")
+        missing_flows = summary.get("missing")
+        coverage_percent = summary.get("coveredPercent")
+        if (
+            coverage_percent is None
+            and isinstance(total_flows, (int, float))
+            and total_flows > 0
+            and isinstance(covered_flows, (int, float))
+        ):
+            coverage_percent = covered_flows / total_flows * 100
 
     lines: list[str] = []
     if total_flows is not None and covered_flows is not None:
-        if coverage_percent is None:
-            pct_text = "0%"
-        else:
-            pct_text = _color_for_pct(
-                float(coverage_percent),
-                f"{_format_pct(coverage_percent)}%",
-            )
-        lines.append(f"Flows covered: {covered_flows}/{total_flows} ({pct_text})")
+        pct_value = _format_pct(coverage_percent) if coverage_percent is not None else "0"
+        lines.append(f"Flows covered: {covered_flows}/{total_flows} ({pct_value}%)")
     if partial_flows is not None and partial_flows > 0:
         lines.append(f"Partial: {partial_flows}")
     if failing_flows is not None and failing_flows > 0:
@@ -416,101 +591,128 @@ def read_flow_coverage_summary(frontend_root: Path) -> list[str]:
     return lines
 
 
-def utc_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def resolve_log_path(log_path: Path | None, repo_root: Path) -> str | None:
-    if log_path is None:
-        return None
+def extract_backend_coverage_table(log_path: Path) -> list[str]:
+    """Extract the pytest COVERAGE REPORT table from the backend log."""
+    if not log_path or not log_path.exists():
+        return []
     try:
-        return str(log_path.relative_to(repo_root))
-    except ValueError:
-        return str(log_path)
+        lines = log_path.read_text(encoding='utf-8', errors='replace').splitlines()
+    except OSError:
+        return []
+    result: list[str] = []
+    in_section = False
+    for line in lines:
+        if not in_section:
+            if 'coverage report' in line.lower():
+                in_section = True
+                result.append(line)
+        else:
+            stripped = line.strip()
+            stripped_lower = stripped.lower()
+            if stripped.startswith('=') and (
+                'passed' in stripped_lower
+                or 'failed' in stripped_lower
+                or 'error' in stripped_lower
+            ):
+                break
+            result.append(line)
+    return result
 
 
-def build_log_header(run_id: str, name: str, command: Sequence[str]) -> str:
-    timestamp = utc_timestamp()
-    cmd_text = " ".join(str(item) for item in command)
-    sep = "=" * 80
-    return (
-        f"\n{sep}\n"
-        f"Resume run: {run_id}\n"
-        f"Timestamp: {timestamp}\n"
-        f"Suite: {name}\n"
-        f"Command: {cmd_text}\n"
-        f"{sep}\n"
-    )
-
-
-def load_resume_summary(summary_path: Path) -> dict | None:
-    if not summary_path.exists():
-        return None
+def extract_jest_coverage_table(log_path: Path) -> list[str]:
+    """Extract the Jest file coverage table and Coverage summary from the frontend-unit log."""
+    if not log_path or not log_path.exists():
+        return []
     try:
-        data = json.loads(summary_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        lines = log_path.read_text(encoding='utf-8', errors='replace').splitlines()
+    except OSError:
+        return []
+    result: list[str] = []
+    in_section = False
+    seen_summary = False
+    for line in lines:
+        stripped = line.strip()
+        if not in_section:
+            if re.search(r'^-{5,}\|', stripped):
+                in_section = True
+                result.append(line)
+        else:
+            result.append(line)
+            if 'Coverage summary' in line:
+                seen_summary = True
+            if seen_summary and stripped.startswith('=') and 'Coverage summary' not in stripped:
+                break
+    return result
+
+
+def extract_flow_coverage_report(log_path: Path) -> list[str]:
+    """Extract the full FLOW COVERAGE REPORT section from the frontend-e2e log."""
+    if not log_path or not log_path.exists():
+        return []
+    try:
+        lines = log_path.read_text(encoding='utf-8', errors='replace').splitlines()
+    except OSError:
+        return []
+    result: list[str] = []
+    in_section = False
+    prev_line = ''
+    for line in lines:
+        if not in_section:
+            if 'FLOW COVERAGE REPORT' in line:
+                in_section = True
+                if prev_line.strip():
+                    result.append(prev_line)
+                result.append(line)
+        else:
+            result.append(line)
+            if 'Flow coverage report written to' in line:
+                break
+        prev_line = line
+    return result
+
+
+def print_suite_coverage_table(result: StepResult) -> None:
+    """Print the full coverage table extracted from a suite's log file."""
+    if not result.log_path:
+        return
+    if result.name == 'backend':
+        table_lines = extract_backend_coverage_table(result.log_path)
+        color_fn: Callable[[str], str] | None = colorize_backend_line
+    elif result.name == 'frontend-unit':
+        table_lines = extract_jest_coverage_table(result.log_path)
+        color_fn = colorize_jest_line
+    elif result.name == 'frontend-e2e':
+        table_lines = extract_flow_coverage_report(result.log_path)
+        color_fn = None
+    else:
+        return
+    if not table_lines:
+        return
+    print()
+    for line in table_lines:
+        if color_fn is not None and _COLOR:
+            print(color_fn(line))
+        else:
+            print(line)
+
+
+_PYTEST_FILE_RE = re.compile(r'^\s*(\S+\.py)\s+[.FEsxX]')
+
+
+def _make_backend_progress() -> Callable[[str], str | None]:
+    """Returns a stateful filter: prints the test file name once per file in quiet mode."""
+    last: list[str] = ['']
+
+    def _fn(line: str) -> str | None:
+        m = _PYTEST_FILE_RE.match(line)
+        if m:
+            file_path = m.group(1)
+            if file_path != last[0]:
+                last[0] = file_path
+                return f"    {_dim('→')} {file_path}"
         return None
-    if not isinstance(data, dict):
-        return None
-    return data
 
-
-def extract_resume_entries(summary: dict) -> dict[str, dict]:
-    entries: dict[str, dict] = {}
-    suites = summary.get("suites")
-    if not isinstance(suites, list):
-        return entries
-    for suite in suites:
-        if not isinstance(suite, dict):
-            continue
-        name = suite.get("name")
-        if isinstance(name, str):
-            entries[name] = suite
-    return entries
-
-
-def resume_status(entry: dict | None) -> str:
-    if not entry:
-        return "unknown"
-    status = entry.get("status")
-    if status in VALID_STATUSES:
-        return status
-    returncode = entry.get("returncode")
-    if isinstance(returncode, int):
-        return "ok" if returncode == 0 else "failed"
-    return "unknown"
-
-
-def build_suite_summary(result: StepResult, run_id: str, repo_root: Path) -> dict:
-    return {
-        "name": result.name,
-        "status": result.status,
-        "returncode": result.returncode,
-        "duration": result.duration,
-        "command": result.command,
-        "timestamp": utc_timestamp(),
-        "log_path": resolve_log_path(result.log_path, repo_root),
-        "run_id": run_id,
-    }
-
-
-def build_resume_summary(
-    results: list[StepResult],
-    run_id: str,
-    repo_root: Path,
-    suite_order: Sequence[str],
-    existing_entries: dict[str, dict] | None = None,
-) -> dict:
-    entries = dict(existing_entries or {})
-    for result in results:
-        entries[result.name] = build_suite_summary(result, run_id, repo_root)
-    order_index = {name: idx for idx, name in enumerate(suite_order)}
-    suites = sorted(entries.values(), key=lambda entry: order_index.get(entry.get("name"), 999))
-    return {
-        "run_id": run_id,
-        "generated_at": utc_timestamp(),
-        "suites": suites,
-    }
+    return _fn
 
 
 def run_command(
@@ -521,8 +723,10 @@ def run_command(
     env: dict[str, str] | None = None,
     capture_coverage: bool = False,
     append_log: bool = False,
-    log_header: str | None = None,
     quiet: bool = False,
+    run_id: str | None = None,
+    line_transform: Callable[[str], str] | None = None,
+    quiet_progress: Callable[[str], str | None] | None = None,
 ) -> StepResult:
     cmd_list = [str(item) for item in command]
     if not quiet:
@@ -538,11 +742,8 @@ def run_command(
     if log_path:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_file = log_path.open("a" if append_log else "w", encoding="utf-8")
-        if log_header:
-            log_file.write(log_header)
-            if not log_header.endswith("\n"):
-                log_file.write("\n")
-            log_file.flush()
+        if append_log:
+            log_file.write(build_log_separator(run_id, name, cmd_list))
 
     start_time = time.monotonic()
     try:
@@ -585,7 +786,14 @@ def run_command(
 
     for line in process.stdout:
         if not quiet:
-            print(_colorize_coverage_output_line(line), end="")
+            if line_transform is not None and _COLOR:
+                print(line_transform(line.rstrip('\n')), end='\n')
+            else:
+                print(line, end="")
+        elif quiet_progress is not None:
+            msg = quiet_progress(line.rstrip('\n'))
+            if msg is not None:
+                print(msg, flush=True)
         if log_file:
             log_file.write(line)
         stripped = line.rstrip("\n")
@@ -628,38 +836,35 @@ def run_backend(
     quiet: bool = False,
     append_log: bool = False,
     run_id: str | None = None,
-    coverage: bool = False,
+    show_coverage: bool = False,
 ) -> StepResult:
-    if coverage:
-        erase_backend_coverage_data(backend_root, quiet=quiet)
-    backend_cmd: list[str] = [sys.executable, "-m", "pytest", "-q"]
-    if coverage:
-        backend_cmd.extend([
-            f"--cov={backend_root / 'base_feature_app'}",
-            "--cov-report=term-missing",
-            "--cov-branch",
-        ])
+    coverage_root = resolve_backend_coverage_root(backend_root)
+    backend_cmd: list[str] = [
+        sys.executable, "-m", "pytest",
+        f"--cov={coverage_root}",
+        "--cov-branch",
+        "--override-ini=addopts=",
+    ]
+    if show_coverage:
+        erase_backend_coverage_data(backend_root)
+        backend_cmd.append("--cov-report=term-missing")
     if markers:
         backend_cmd.extend(["-m", markers])
     backend_cmd.extend(extra_args)
-
-    log_header = (
-        build_log_header(run_id, "backend", backend_cmd)
-        if append_log and run_id
-        else None
-    )
 
     result = run_command(
         name="backend",
         command=backend_cmd,
         cwd=backend_root,
         log_path=report_dir / "backend.log",
-        capture_coverage=coverage,
+        capture_coverage=show_coverage,
         append_log=append_log,
-        log_header=log_header,
         quiet=quiet,
+        run_id=run_id,
+        line_transform=colorize_backend_line if show_coverage else None,
+        quiet_progress=_make_backend_progress() if quiet else None,
     )
-    if coverage and result.status == "ok":
+    if show_coverage and result.status == "ok":
         result.coverage = read_backend_coverage_summary(backend_root)
     return result
 
@@ -672,32 +877,27 @@ def run_frontend_unit(
     quiet: bool = False,
     append_log: bool = False,
     run_id: str | None = None,
-    coverage: bool = False,
+    show_coverage: bool = False,
 ) -> StepResult:
     unit_cmd = ["npm", "run", "test", "--"]
-    if coverage:
+    if show_coverage:
         unit_cmd.append("--coverage")
     if workers:
         unit_cmd.append(f"--maxWorkers={workers}")
     unit_cmd.extend(extra_args)
-
-    log_header = (
-        build_log_header(run_id, "frontend-unit", unit_cmd)
-        if append_log and run_id
-        else None
-    )
 
     result = run_command(
         name="frontend-unit",
         command=unit_cmd,
         cwd=frontend_root,
         log_path=report_dir / "frontend-unit.log",
-        capture_coverage=coverage,
+        capture_coverage=show_coverage,
         append_log=append_log,
-        log_header=log_header,
         quiet=quiet,
+        run_id=run_id,
+        line_transform=colorize_jest_line if show_coverage else None,
     )
-    if coverage and result.status == "ok":
+    if show_coverage and result.status == "ok":
         result.coverage = read_jest_coverage_summary(frontend_root)
     return result
 
@@ -710,19 +910,13 @@ def run_frontend_e2e(
     quiet: bool = False,
     append_log: bool = False,
     run_id: str | None = None,
-    coverage: bool = False,
+    show_coverage: bool = False,
 ) -> StepResult:
     env = dict(os.environ)
     playwright_cmd = ["npx", "playwright", "test"]
     if workers:
         playwright_cmd.append(f"--workers={workers}")
     playwright_cmd.extend(extra_args)
-
-    log_header = (
-        build_log_header(run_id, "frontend-e2e", playwright_cmd)
-        if append_log and run_id
-        else None
-    )
 
     result = run_command(
         name="frontend-e2e",
@@ -732,10 +926,10 @@ def run_frontend_e2e(
         env=env,
         capture_coverage=False,
         append_log=append_log,
-        log_header=log_header,
         quiet=quiet,
+        run_id=run_id,
     )
-    if coverage:
+    if show_coverage:
         result.coverage = read_flow_coverage_summary(frontend_root)
     return result
 
@@ -762,7 +956,7 @@ def print_final_report(results: list[StepResult], duration: float) -> None:
         print(f"  {result.name:<18} {tag}  ({result.duration:.2f}s)")
         if result.coverage:
             for line in result.coverage:
-                print(f"    {line}")
+                print(f"    {colorize_coverage_summary_line(line)}")
         if result.log_path:
             print(f"    {_dim(f'Log: {result.log_path}')}")
 
@@ -778,39 +972,7 @@ def print_final_report(results: list[StepResult], duration: float) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Run backend pytest, frontend unit, and E2E tests with reporting."
-        )
-    )
-    parser.add_argument("--backend-markers", default="",
-                        help="pytest marker expression (-m)")
-    parser.add_argument("--backend-args", default="",
-                        help="Extra args forwarded to pytest")
-    parser.add_argument("--unit-args", default="",
-                        help="Extra args forwarded to Jest")
-    parser.add_argument("--e2e-args", default="",
-                        help="Extra args forwarded to Playwright")
-    parser.add_argument("--unit-workers", default=None,
-                        help="Jest --maxWorkers value (default: auto)")
-    parser.add_argument("--e2e-workers", default=None,
-                        help="Playwright --workers value (default: per config)")
-    parser.add_argument("--skip-backend", action="store_true")
-    parser.add_argument("--skip-unit", action="store_true")
-    parser.add_argument("--skip-e2e", action="store_true")
-    parser.add_argument("--parallel", action="store_true",
-                        help="Run suites in parallel (default: sequential)")
-    parser.add_argument("--resume", action="store_true",
-                        help="Resume last run and only execute failed suites")
-    verbosity = parser.add_mutually_exclusive_group()
-    verbosity.add_argument("--verbose", action="store_true",
-                           help="Force verbose output (even in parallel)")
-    verbosity.add_argument("--quiet", action="store_true",
-                           help="Force quiet output (even in sequential mode)")
-    parser.add_argument("--report-dir", default="test-reports")
-    parser.add_argument("--coverage", action="store_true",
-                        help="Enable coverage reporting for all suites (default: off)")
-
+    parser = build_parser()
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -822,16 +984,11 @@ def main() -> int:
     parallel = args.parallel
     if args.verbose:
         quiet = False
-    elif args.quiet:
-        quiet = True
     else:
-        quiet = parallel
-
+        quiet = True
     append_log = args.resume
-    run_id = uuid.uuid4().hex
-
-    if not args.resume and resume_path.exists():
-        resume_path.unlink()
+    show_coverage = args.coverage
+    run_id = create_run_id()
 
     suite_runners: list[tuple[str, partial[StepResult]]] = []
 
@@ -847,7 +1004,7 @@ def main() -> int:
                 quiet=quiet,
                 append_log=append_log,
                 run_id=run_id,
-                coverage=args.coverage,
+                show_coverage=show_coverage,
             ),
         ))
 
@@ -863,7 +1020,7 @@ def main() -> int:
                 quiet=quiet,
                 append_log=append_log,
                 run_id=run_id,
-                coverage=args.coverage,
+                show_coverage=show_coverage,
             ),
         ))
 
@@ -879,29 +1036,31 @@ def main() -> int:
                 quiet=quiet,
                 append_log=append_log,
                 run_id=run_id,
-                coverage=args.coverage,
+                show_coverage=show_coverage,
             ),
         ))
+
+    if not args.resume:
+        clear_resume_state(resume_path)
+        clear_suite_logs(report_dir, [name for name, _ in suite_runners])
 
     if not suite_runners:
         print("All suites skipped. Nothing to run.")
         return 0
 
-    suite_order = [name for name, _ in suite_runners]
-    existing_entries: dict[str, dict] | None = None
+    resume_state = load_resume_state(resume_path) if args.resume else None
     if args.resume:
-        resume_summary = load_resume_summary(resume_path)
-        existing_entries = extract_resume_entries(resume_summary) if resume_summary else {}
-        if resume_summary is not None:
-            resume_runners: list[tuple[str, partial[StepResult]]] = []
-            for name, runner in suite_runners:
-                status = resume_status(existing_entries.get(name))
-                if status != "ok":
-                    resume_runners.append((name, runner))
-            if not resume_runners:
-                print("All suites passed in the last run. Re-run without --resume to execute again.")
-                return 0
-            suite_runners = resume_runners
+        selected_suites, all_passed = select_suites_for_resume(suite_runners, resume_state)
+        if resume_state is not None and all_passed:
+            print(
+                "Todas las suites ya pasaron. Si deseas ejecutarlas de nuevo, "
+                "ejecuta el comando sin --resume."
+            )
+            return 0
+        suite_runners = selected_suites
+        if not suite_runners:
+            print("All suites skipped. Nothing to run.")
+            return 0
 
     results: list[StepResult] = []
     wall_start = time.monotonic()
@@ -910,7 +1069,6 @@ def main() -> int:
         names = [n for n, _ in suite_runners]
         print(_bold(f"Running {len(names)} suites in parallel..."))
         print()
-
         progress = _LiveProgress(names) if quiet else None
         if progress:
             progress.start()
@@ -927,39 +1085,61 @@ def main() -> int:
                     if progress:
                         progress.mark_done(name, result.status, result.duration)
                     results.append(result)
+                    resume_state = record_suite_result(
+                        resume_path,
+                        resume_state,
+                        result,
+                        run_id=run_id,
+                    )
                 except Exception as exc:
                     if progress:
                         progress.mark_done(name, "failed", 0.0)
-                    results.append(StepResult(
+                    result = StepResult(
                         name=name,
                         command=[],
                         returncode=1,
                         duration=0.0,
                         status="failed",
                         output_tail=[str(exc)],
-                    ))
+                    )
+                    results.append(result)
+                    resume_state = record_suite_result(
+                        resume_path,
+                        resume_state,
+                        result,
+                        run_id=run_id,
+                    )
 
         if progress:
             progress.stop()
+        if quiet and show_coverage:
+            suite_order = {name: i for i, (name, _) in enumerate(suite_runners)}
+            for r in sorted(results, key=lambda r: suite_order.get(r.name, 999)):
+                print_suite_coverage_table(r)
     else:
         for _name, runner in suite_runners:
-            results.append(runner())
+            if quiet:
+                print(f"  {_cyan('⏳')} {_bold(_name)} running...")
+            result = runner()
+            if quiet:
+                tag = _green('OK') if result.status == 'ok' else _red('FAILED')
+                print(f"  {_cyan('✓') if result.status == 'ok' else _red('✗')} {_bold(_name)} {tag} ({result.duration:.1f}s)")
+                if show_coverage:
+                    print_suite_coverage_table(result)
+            results.append(result)
+            resume_state = record_suite_result(
+                resume_path,
+                resume_state,
+                result,
+                run_id=run_id,
+            )
 
     wall_duration = time.monotonic() - wall_start
 
-    order = {name: i for i, name in enumerate(suite_order)}
+    order = {name: i for i, (name, _) in enumerate(suite_runners)}
     results.sort(key=lambda r: order.get(r.name, 999))
 
     print_final_report(results, wall_duration)
-    report_dir.mkdir(parents=True, exist_ok=True)
-    summary_payload = build_resume_summary(
-        results,
-        run_id,
-        repo_root,
-        suite_order,
-        existing_entries=existing_entries,
-    )
-    resume_path.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
     failed = any(r.status == "failed" for r in results)
     return 1 if failed else 0
 
