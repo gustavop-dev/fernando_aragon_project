@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useEffect, useRef } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 import { useAuthStore } from '@/lib/stores/authStore';
+import { api } from '@/lib/services/http';
 
 type GoogleUser = {
   email: string;
@@ -25,17 +27,34 @@ export default function SignInPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [siteKey, setSiteKey] = useState<string>('');
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+
+  useEffect(() => {
+    api.get('google-captcha/site-key/')
+      .then((res) => setSiteKey(res.data.site_key || ''))
+      .catch(() => {});
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
 
+    if (siteKey && !captchaToken) {
+      setError('Please complete the captcha');
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      await signIn({ email, password });
+      await signIn({ email, password, captcha_token: captchaToken ?? undefined });
       router.replace('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid credentials');
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
     } finally {
       setLoading(false);
     }
@@ -108,6 +127,17 @@ export default function SignInPage() {
               required
             />
           </div>
+
+          {siteKey && (
+            <div className="flex justify-center">
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={siteKey}
+                onChange={(token) => setCaptchaToken(token)}
+                onExpired={() => setCaptchaToken(null)}
+              />
+            </div>
+          )}
 
           <button 
             className="bg-black text-white rounded-full px-5 py-3 w-full disabled:opacity-50 hover:bg-gray-900" 

@@ -2,14 +2,16 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 
 import type { Blog } from '@/lib/types';
 import { useBlogStore } from '@/lib/stores/blogStore';
 
-export default function BlogDetailPage({ params }: { params: { blogId: string } }) {
+export default function BlogDetailPage() {
   const fetchBlog = useBlogStore((s) => s.fetchBlog);
   const [blog, setBlog] = useState<Blog | null>(null);
-  const { blogId } = params;
+  const params = useParams<{ blogId: string }>();
+  const blogId = params?.blogId;
 
   useEffect(() => {
     const id = Number(blogId);

@@ -19,6 +19,7 @@ from base_feature_app.utils.auth_utils import (
     send_password_reset_code,
     send_verification_code
 )
+from base_feature_app.views.captcha_views import verify_recaptcha
 
 User = get_user_model()
 
@@ -37,6 +38,13 @@ def sign_up(request):
     - first_name: str (optional)
     - last_name: str (optional)
     """
+    captcha_token = request.data.get('captcha_token', '')
+    if not verify_recaptcha(captcha_token):
+        return Response(
+            {'captcha_token': ['reCAPTCHA verification failed.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     email = request.data.get('email', '').strip().lower()
     password = request.data.get('password')
     first_name = request.data.get('first_name', '').strip()
@@ -45,6 +53,12 @@ def sign_up(request):
     if not email or not password:
         return Response(
             {'error': 'Email and password are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if len(password) < 8:
+        return Response(
+            {'error': 'Password must be at least 8 characters'},
             status=status.HTTP_400_BAD_REQUEST
         )
     
@@ -79,6 +93,13 @@ def sign_in(request):
     - email: str
     - password: str
     """
+    captcha_token = request.data.get('captcha_token', '')
+    if not verify_recaptcha(captcha_token):
+        return Response(
+            {'captcha_token': ['reCAPTCHA verification failed.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     email = request.data.get('email', '').strip().lower()
     password = request.data.get('password')
     

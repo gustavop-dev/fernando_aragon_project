@@ -1,11 +1,23 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 
 import BlogCarousel from '@/components/blog/BlogCarousel';
 import ProductCarousel from '@/components/product/ProductCarousel';
+import { useProductStore } from '@/lib/stores/productStore';
+import { useEffect } from 'react';
 
 export default function HomePage() {
+  const products = useProductStore((s) => s.products);
+  const fetchProducts = useProductStore((s) => s.fetchProducts);
+
+  useEffect(() => {
+    if (products.length === 0) void fetchProducts();
+  }, [fetchProducts, products.length]);
+
+  const featured = products.slice(0, 4);
+
   return (
     <main>
       <section className="border-b bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-gray-50 to-white">
@@ -54,10 +66,22 @@ export default function HomePage() {
                 <p className="mt-2 text-lg font-semibold tracking-tight">Discover this week’s highlights</p>
                 <p className="mt-2 text-sm text-gray-600">A quick selection of best sellers and fresh drops.</p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
-                  <div className="aspect-square rounded-2xl bg-gray-100" />
-                  <div className="aspect-square rounded-2xl bg-gray-100" />
-                  <div className="aspect-square rounded-2xl bg-gray-100" />
-                  <div className="aspect-square rounded-2xl bg-gray-100" />
+                  {(featured.length > 0 ? featured : (Array.from({ length: 4 }) as (typeof featured[0] | null)[])).map((p, idx) => {
+                    const cover = p?.gallery_urls?.[0];
+                    return (
+                      <div key={idx} className="relative aspect-square rounded-2xl bg-gray-100 overflow-hidden">
+                        {cover && (
+                          <Image
+                            src={cover}
+                            alt={p?.title ?? ''}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 1024px) 50vw, 20vw"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

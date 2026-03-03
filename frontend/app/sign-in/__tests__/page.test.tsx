@@ -27,6 +27,20 @@ jest.mock('@react-oauth/google', () => ({
   ),
 }));
 
+jest.mock('react-google-recaptcha', () => {
+  const React = require('react');
+  return React.forwardRef(
+    ({ onChange }: { onChange?: (token: string | null) => void }, ref: any) => {
+      React.useImperativeHandle(ref, () => ({ reset: () => {} }));
+      return <div data-testid="mock-recaptcha" />;
+    },
+  );
+});
+
+jest.mock('../../../lib/services/http', () => ({
+  api: { get: jest.fn().mockRejectedValue(new Error('no key')), post: jest.fn() },
+}));
+
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
@@ -92,7 +106,7 @@ describe('SignInPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => {
-      expect(signIn).toHaveBeenCalledWith({ email: 'user@example.com', password: 'password123' });
+      expect(signIn).toHaveBeenCalledWith({ email: 'user@example.com', password: 'password123', captcha_token: undefined });
     });
     expect(replace).toHaveBeenCalledWith('/dashboard');
   });

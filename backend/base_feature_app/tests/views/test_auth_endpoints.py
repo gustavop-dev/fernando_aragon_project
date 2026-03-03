@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -23,7 +24,8 @@ class DummyResponse:
 
 
 @pytest.mark.django_db
-def test_sign_up_requires_email_and_password(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_up_requires_email_and_password(mock_captcha, api_client):
     response = api_client.post(reverse('sign_up'), {}, format='json')
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -31,7 +33,8 @@ def test_sign_up_requires_email_and_password(api_client):
 
 
 @pytest.mark.django_db
-def test_sign_up_rejects_existing_email(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_up_rejects_existing_email(mock_captcha, api_client):
     User = get_user_model()
     User.objects.create_user(email='existing@example.com', password='pass1234')
 
@@ -46,7 +49,8 @@ def test_sign_up_rejects_existing_email(api_client):
 
 
 @pytest.mark.django_db
-def test_sign_up_creates_user(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_up_creates_user(mock_captcha, api_client):
     """Verifies sign-up creates a new user record and returns an access token on success."""
     response = api_client.post(
         reverse('sign_up'),
@@ -68,7 +72,8 @@ def test_sign_up_creates_user(api_client):
 
 
 @pytest.mark.django_db
-def test_sign_in_requires_fields(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_in_requires_fields(mock_captcha, api_client):
     response = api_client.post(reverse('sign_in'), {}, format='json')
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -76,7 +81,8 @@ def test_sign_in_requires_fields(api_client):
 
 
 @pytest.mark.django_db
-def test_sign_in_rejects_unknown_user(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_in_rejects_unknown_user(mock_captcha, api_client):
     response = api_client.post(
         reverse('sign_in'),
         {'email': 'missing@example.com', 'password': 'pass1234'},
@@ -88,7 +94,8 @@ def test_sign_in_rejects_unknown_user(api_client):
 
 
 @pytest.mark.django_db
-def test_sign_in_rejects_invalid_password(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_in_rejects_invalid_password(mock_captcha, api_client):
     User = get_user_model()
     User.objects.create_user(email='user@example.com', password='pass1234')
 
@@ -102,7 +109,8 @@ def test_sign_in_rejects_invalid_password(api_client):
 
 
 @pytest.mark.django_db
-def test_sign_in_rejects_inactive_user(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_in_rejects_inactive_user(mock_captcha, api_client):
     User = get_user_model()
     user = User.objects.create_user(email='inactive@example.com', password='pass1234')
     user.is_active = False
@@ -119,7 +127,8 @@ def test_sign_in_rejects_inactive_user(api_client):
 
 
 @pytest.mark.django_db
-def test_sign_in_success(api_client):
+@patch('base_feature_app.views.auth.verify_recaptcha', return_value=True)
+def test_sign_in_success(mock_captcha, api_client):
     User = get_user_model()
     User.objects.create_user(email='active@example.com', password='pass1234')
 

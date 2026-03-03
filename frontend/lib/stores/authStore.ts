@@ -19,8 +19,8 @@ type AuthState = {
   refreshToken: string | null;
   user: User | null;
   isAuthenticated: boolean;
-  signIn: (args: { email: string; password: string }) => Promise<void>;
-  signUp: (args: { email: string; password: string; first_name?: string; last_name?: string }) => Promise<void>;
+  signIn: (args: { email: string; password: string; captcha_token?: string }) => Promise<void>;
+  signUp: (args: { email: string; password: string; first_name?: string; last_name?: string; captcha_token?: string }) => Promise<void>;
   googleLogin: (args: { credential?: string; email?: string; given_name?: string; family_name?: string; picture?: string }) => Promise<void>;
   signOut: () => void;
   syncFromCookies: () => void;
@@ -40,8 +40,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ accessToken, refreshToken, isAuthenticated: Boolean(accessToken) });
   },
   
-  signIn: async ({ email, password }) => {
-    const response = await api.post('sign_in/', { email, password });
+  signIn: async ({ email, password, captcha_token }) => {
+    const response = await api.post('sign_in/', { email, password, captcha_token });
     const access = response.data?.access;
     const refresh = response.data?.refresh;
     const user = response.data?.user;
@@ -55,12 +55,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     get().syncFromCookies();
   },
   
-  signUp: async ({ email, password, first_name, last_name }) => {
+  signUp: async ({ email, password, first_name, last_name, captcha_token }) => {
     const response = await api.post('sign_up/', { 
       email, 
       password, 
       first_name, 
-      last_name 
+      last_name,
+      captcha_token,
     });
     
     const access = response.data?.access;

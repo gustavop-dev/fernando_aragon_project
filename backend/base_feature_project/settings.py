@@ -255,6 +255,12 @@ EMAIL_BACKEND = os.getenv('DJANGO_EMAIL_BACKEND') or (
 )
 
 # ---------------------------------------------------------------------------
+# Google reCAPTCHA
+# ---------------------------------------------------------------------------
+RECAPTCHA_SITE_KEY = os.getenv('RECAPTCHA_SITE_KEY', '')
+RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY', '')
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 _logs_dir = BASE_DIR / 'logs'

@@ -25,7 +25,7 @@ export default function BackofficePage() {
         setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
         setSales(Array.isArray(salesRes.data) ? salesRes.data : []);
       } catch (e) {
-        setError('Could not load backoffice data. Make sure you are signed in with a staff user.');
+        setError('Could not load backoffice data. Make sure you are signed in.');
       } finally {
         setLoading(false);
       }
@@ -37,7 +37,7 @@ export default function BackofficePage() {
   return (
     <main className="max-w-6xl mx-auto px-6 py-10">
       <h1 className="text-2xl font-semibold">Backoffice</h1>
-      <p className="mt-2 text-gray-600">Protected view. Users and Sales require staff permissions.</p>
+      <p className="mt-2 text-gray-600">Protected view. Sign in to see Users and Sales data.</p>
 
       {loading ? <p className="mt-4 text-gray-600">Loading...</p> : null}
       {error ? <p className="mt-4 text-red-600">{error}</p> : null}

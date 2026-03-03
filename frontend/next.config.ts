@@ -16,7 +16,9 @@ try {
 }
 
 const nextConfig: NextConfig = {
+  skipTrailingSlashRedirect: true,
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'http',
@@ -49,7 +51,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${backendOrigin}/api/:path*`,
+        destination: `${backendOrigin}/api/:path*/`,
       },
       {
         source: '/media/:path*',

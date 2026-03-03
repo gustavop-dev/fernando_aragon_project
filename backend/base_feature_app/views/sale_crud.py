@@ -11,8 +11,8 @@ from base_feature_app.serializers.sale_list import SaleListSerializer
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def sales(request):
-    if not request.user.is_authenticated or not request.user.is_staff:
-        return Response({'detail': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+    if not request.user.is_authenticated:
+        return Response({'detail': 'Authentication required.'}, status=status.HTTP_403_FORBIDDEN)
 
     queryset = Sale.objects.all().order_by('-id')
     serializer = SaleListSerializer(queryset, many=True, context={'request': request})
@@ -22,8 +22,8 @@ def sales(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def sale_detail(request, sale_id: int):
-    if not request.user.is_authenticated or not request.user.is_staff:
-        return Response({'detail': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+    if not request.user.is_authenticated:
+        return Response({'detail': 'Authentication required.'}, status=status.HTTP_403_FORBIDDEN)
 
     try:
         sale = Sale.objects.get(id=sale_id)

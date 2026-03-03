@@ -8,6 +8,13 @@ jest.mock('../../../../lib/stores/blogStore', () => ({
   useBlogStore: jest.fn(),
 }));
 
+jest.mock('next/navigation', () => ({
+  useParams: jest.fn(),
+}));
+
+import { useParams } from 'next/navigation';
+const mockUseParams = useParams as jest.Mock;
+
 const mockUseBlogStore = useBlogStore as unknown as jest.Mock;
 
 const setBlogStoreState = (state: any) => {
@@ -22,8 +29,9 @@ describe('BlogDetailPage', () => {
   it('renders loading state when blogId is invalid', async () => {
     const fetchBlog = jest.fn();
     setBlogStoreState({ fetchBlog });
+    mockUseParams.mockReturnValue({ blogId: 'abc' });
 
-    render(<BlogDetailPage params={{ blogId: 'abc' }} />);
+    render(<BlogDetailPage />);
 
     expect(await screen.findByText('Loading...')).toBeInTheDocument();
     expect(fetchBlog).not.toHaveBeenCalled();
@@ -39,7 +47,8 @@ describe('BlogDetailPage', () => {
     });
     setBlogStoreState({ fetchBlog });
 
-    render(<BlogDetailPage params={{ blogId: '1' }} />);
+    mockUseParams.mockReturnValue({ blogId: '1' });
+    render(<BlogDetailPage />);
 
     await waitFor(() => {
       expect(fetchBlog).toHaveBeenCalledWith(1);
@@ -63,8 +72,9 @@ describe('BlogDetailPage', () => {
       image_url: '',
     });
     setBlogStoreState({ fetchBlog });
+    mockUseParams.mockReturnValue({ blogId: '2' });
 
-    render(<BlogDetailPage params={{ blogId: '2' }} />);
+    render(<BlogDetailPage />);
 
     await waitFor(() => {
       expect(fetchBlog).toHaveBeenCalledWith(2);

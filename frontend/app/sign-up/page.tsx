@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 import { useAuthStore } from '@/lib/stores/authStore';
+import { api } from '@/lib/services/http';
 
 type GoogleUser = {
   email: string;
@@ -29,9 +31,15 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [siteKey, setSiteKey] = useState<string>('');
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   useEffect(() => {
     setMounted(true);
+    api.get('google-captcha/site-key/')
+      .then((res) => setSiteKey(res.data.site_key || ''))
+      .catch(() => {});
   }, []);
 
   const onSubmit = async (e: FormEvent) => {
@@ -46,9 +54,15 @@ export default function SignUpPage() {
       return;
     }
 
-    // Validate password strength (optional)
+    // Validate password strength
     if (password.length < 8) {
       setError('Password must be at least 8 characters');
+      setLoading(false);
+      return;
+    }
+
+    if (siteKey && !captchaToken) {
+      setError('Please complete the captcha');
       setLoading(false);
       return;
     }
@@ -58,11 +72,14 @@ export default function SignUpPage() {
         email, 
         password, 
         first_name: firstName,
-        last_name: lastName
+        last_name: lastName,
+        captcha_token: captchaToken ?? undefined,
       });
       router.replace('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
     } finally {
       setLoading(false);
     }
@@ -168,6 +185,17 @@ export default function SignUpPage() {
               required
             />
           </div>
+
+          {siteKey && (
+            <div className="flex justify-center">
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={siteKey}
+                onChange={(token) => setCaptchaToken(token)}
+                onExpired={() => setCaptchaToken(null)}
+              />
+            </div>
+          )}
 
           <button 
             className="bg-black text-white rounded-full px-5 py-3 w-full disabled:opacity-50 hover:bg-gray-900" 
