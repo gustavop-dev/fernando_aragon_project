@@ -282,14 +282,14 @@ LOGGING = {
 # ---------------------------------------------------------------------------
 DBBACKUP_FILENAME_TEMPLATE = '{datetime}.sql'
 DBBACKUP_MEDIA_FILENAME_TEMPLATE = '{datetime}.tar'
-DBBACKUP_CLEANUP_KEEP = 5
-DBBACKUP_CLEANUP_KEEP_MEDIA = 5
+DBBACKUP_CLEANUP_KEEP = 4
+DBBACKUP_CLEANUP_KEEP_MEDIA = 4
 
 # ---------------------------------------------------------------------------
 # Task Queue (Huey)
 # ---------------------------------------------------------------------------
 HUEY = RedisHuey(
-    name='base_feature_project',
+    name='fernando_aragon_project',
     url=os.getenv('REDIS_URL', 'redis://localhost:6379/1'),
     immediate=not IS_PRODUCTION,
 )

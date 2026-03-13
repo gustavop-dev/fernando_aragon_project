@@ -50,7 +50,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 LOGGING['handlers']['file'] = {  # noqa: F405
     'level': 'WARNING',
     'class': 'logging.FileHandler',
-    'filename': _logs_dir / 'django.log',  # noqa: F405
+    'filename': BASE_DIR / 'logs' / 'django.log',  # noqa: F405
     'formatter': 'verbose',
 }
 LOGGING['loggers']['django']['handlers'].append('file')  # noqa: F405

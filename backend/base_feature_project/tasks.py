@@ -20,7 +20,7 @@ from huey.contrib.djhuey import periodic_task
 logger = logging.getLogger('backups')
 
 
-@periodic_task(crontab(day='1,21', hour='3', minute='0'))
+@periodic_task(crontab(day_of_week='0', hour='3', minute='30'))
 def scheduled_backup():
     """
     Automated backup of database and media files every 20 days.
@@ -54,7 +54,7 @@ def scheduled_backup():
         raise
 
 
-@periodic_task(crontab(hour='4', minute='0'))
+@periodic_task(crontab(hour='4', minute='15'))
 def silk_garbage_collection():
     """
     Daily cleanup of Silk profiling data older than 7 days.
@@ -71,7 +71,7 @@ def silk_garbage_collection():
     logger.info(output.getvalue())
 
 
-@periodic_task(crontab(day_of_week='1', hour='8', minute='0'))
+@periodic_task(crontab(day_of_week='5', hour='7', minute='30'))
 def weekly_slow_queries_report():
     """
     Weekly report of slow queries and potential N+1 patterns.
