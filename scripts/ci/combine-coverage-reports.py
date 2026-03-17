@@ -86,6 +86,31 @@ def build_backend_section(data: dict | None) -> tuple[str, list[str]]:
     details.append("|--------|--------:|------:|------:|")
     details.append(f"| Statements | {covered_stmts} | {num_stmts} | {stmts_pct:.1f}% |")
     details.append(f"| Branches | {covered_branches} | {num_branches} | {branches_pct:.1f}% |")
+
+    # Top 10 uncovered files
+    files_data = data.get("files", {})
+    uncovered: list[tuple[str, int, int, float]] = []
+    for fpath, info in files_data.items():
+        summary = info.get("summary", {})
+        f_stmts = summary.get("num_statements", 0)
+        f_miss = summary.get("missing_lines", 0)
+        f_pct = summary.get("percent_covered", 100.0)
+        if f_miss > 0:
+            short = fpath.split("base_feature_app/")[-1] if "base_feature_app/" in fpath else fpath
+            uncovered.append((short, f_stmts, f_miss, f_pct))
+
+    if uncovered:
+        uncovered.sort(key=lambda x: x[3])
+        details.append("")
+        details.append("**Top uncovered files**")
+        details.append("")
+        details.append("| # | File | Stmts | Miss | Cover | Bar |")
+        details.append("|--:|------|------:|-----:|------:|-----|")
+        for idx, (name, st, ms, pc) in enumerate(uncovered[:10], 1):
+            details.append(
+                f"| {idx} | `{name}` | {st} | {ms} | {pc:.1f}% | `{_bar(pc, 10)}` |"
+            )
+
     details.append("")
     details.append("</details>")
 
@@ -135,6 +160,33 @@ def build_frontend_unit_section(data: dict | None) -> tuple[str, list[str]]:
     details.append(f"| Branches | {branches_covered} | {branches_total} | {branches_pct:.1f}% |")
     details.append(f"| Functions | {funcs_covered} | {funcs_total} | {funcs_pct:.1f}% |")
     details.append(f"| Lines | {lines_covered} | {lines_total} | {lines_pct:.1f}% |")
+
+    # Top 10 uncovered files
+    uncovered: list[tuple[str, int, int, float]] = []
+    for fpath, info in data.items():
+        if fpath == "total":
+            continue
+        f_stmts_info = info.get("statements", {})
+        f_total = f_stmts_info.get("total", 0)
+        f_covered = f_stmts_info.get("covered", 0)
+        f_miss = f_total - f_covered
+        f_pct = f_stmts_info.get("pct", 100)
+        if f_miss > 0:
+            short = fpath.split("/src/")[-1] if "/src/" in fpath else fpath
+            uncovered.append((short, f_total, f_miss, f_pct))
+
+    if uncovered:
+        uncovered.sort(key=lambda x: x[3])
+        details.append("")
+        details.append("**Top uncovered files**")
+        details.append("")
+        details.append("| # | File | Stmts | Miss | Cover | Bar |")
+        details.append("|--:|------|------:|-----:|------:|-----|")
+        for idx, (name, ft, fm, fp) in enumerate(uncovered[:10], 1):
+            details.append(
+                f"| {idx} | `{name}` | {ft} | {fm} | {fp:.1f}% | `{_bar(fp, 10)}` |"
+            )
+
     details.append("")
     details.append("</details>")
 
@@ -170,6 +222,72 @@ def build_e2e_section(data: dict | None) -> tuple[str, list[str]]:
     details.append(f"| ❌ Failing | {failing} |")
     details.append(f"| ⬜ Missing | {missing} |")
     details.append(f"| **Total** | **{total_flows}** |")
+
+    # Per-flow breakdown from flows dict
+    flows = data.get("flows", {})
+
+    # Failing flows
+    failing_flows = [
+        (fid, fd)
+        for fid, fd in flows.items()
+        if fd.get("status") == "failing"
+    ]
+    if failing_flows:
+        failing_flows.sort(key=lambda x: x[1].get("definition", {}).get("priority", "P4"))
+        details.append("")
+        details.append("**❌ Failing flows**")
+        details.append("")
+        details.append("| Flow | Name | Priority | Tests | Failed |")
+        details.append("|------|------|----------|------:|-------:|")
+        for fid, fd in failing_flows:
+            defn = fd.get("definition", {})
+            tests = fd.get("tests", {})
+            details.append(
+                f"| `{fid}` | {defn.get('name', fid)} | {defn.get('priority', '—')} "
+                f"| {tests.get('total', 0)} | {tests.get('failed', 0)} |"
+            )
+
+    # Missing flows
+    missing_flows = [
+        (fid, fd)
+        for fid, fd in flows.items()
+        if fd.get("status") == "missing"
+    ]
+    if missing_flows:
+        missing_flows.sort(key=lambda x: x[1].get("definition", {}).get("priority", "P4"))
+        details.append("")
+        details.append("**⬜ Missing flows (no tests)**")
+        details.append("")
+        details.append("| Flow | Name | Priority | Module |")
+        details.append("|------|------|----------|--------|")
+        for fid, fd in missing_flows:
+            defn = fd.get("definition", {})
+            details.append(
+                f"| `{fid}` | {defn.get('name', fid)} "
+                f"| {defn.get('priority', '—')} | {defn.get('module', '—')} |"
+            )
+
+    # Coverage by module
+    by_module: dict[str, dict[str, int]] = {}
+    for _fid, fd in flows.items():
+        mod = fd.get("definition", {}).get("module", "unknown")
+        if mod not in by_module:
+            by_module[mod] = {"covered": 0, "total": 0}
+        by_module[mod]["total"] += 1
+        if fd.get("status") == "covered":
+            by_module[mod]["covered"] += 1
+
+    if by_module:
+        details.append("")
+        details.append("**📦 Coverage by module**")
+        details.append("")
+        details.append("| Module | Covered | Total | % |")
+        details.append("|--------|--------:|------:|------:|")
+        for mod in sorted(by_module):
+            m = by_module[mod]
+            m_pct = (m["covered"] / m["total"] * 100) if m["total"] > 0 else 0
+            details.append(f"| {mod} | {m['covered']} | {m['total']} | {m_pct:.1f}% |")
+
     details.append("")
     details.append("</details>")
 
