@@ -3,9 +3,9 @@ Combine coverage reports from backend, frontend-unit, and frontend-e2e
 into a unified Markdown summary for GitHub Actions Job Summary.
 
 Reads:
-  - backend-coverage-report/backend-coverage.json   (coverage.py JSON format)
-  - frontend-unit-coverage-report/coverage-summary.json (vitest json-summary)
-  - frontend-e2e-coverage-report/flow-coverage.json (custom Playwright reporter)
+  - backend-report/backend-coverage.json   (coverage.py JSON format)
+  - frontend-unit-report/coverage-summary.json (vitest json-summary)
+  - frontend-e2e-report/flow-coverage.json (custom Playwright reporter)
 
 Writes:
   - coverage-report.md   (artifact + PR comment body)
@@ -67,11 +67,23 @@ def build_backend_section(data: dict | None) -> tuple[str, list[str]]:
     totals = data.get("totals", {})
     stmts_pct = totals.get("percent_covered", 0.0)
     num_stmts = totals.get("num_statements", 0)
-    covered_stmts = num_stmts - totals.get("missing_lines", 0)
+    missing_lines = totals.get("missing_lines", 0)
+    covered_stmts = num_stmts - missing_lines
     num_branches = totals.get("num_branches", 0)
     missing_branches = totals.get("missing_branches", 0)
     covered_branches = num_branches - missing_branches
     branches_pct = ((covered_branches / num_branches) * 100) if num_branches > 0 else 0.0
+
+    # Functions (optional — not in standard coverage.py, added by enrichment step)
+    funcs_total = totals.get("functions_total", 0)
+    funcs_covered = totals.get("functions_covered", 0)
+    funcs_pct = ((funcs_covered / funcs_total) * 100) if funcs_total > 0 else 0.0
+    has_funcs = funcs_total > 0
+
+    # Lines (covered_lines from coverage.py JSON, falls back to statements)
+    covered_lines = totals.get("covered_lines", covered_stmts)
+    num_lines = covered_lines + missing_lines
+    lines_pct = ((covered_lines / num_lines) * 100) if num_lines > 0 else 0.0
 
     emoji = _pct_emoji(stmts_pct)
     details_text = f"{covered_stmts}/{num_stmts} stmts, {branches_pct:.1f}% branches"
@@ -86,6 +98,9 @@ def build_backend_section(data: dict | None) -> tuple[str, list[str]]:
     details.append("|--------|--------:|------:|------:|")
     details.append(f"| Statements | {covered_stmts} | {num_stmts} | {stmts_pct:.1f}% |")
     details.append(f"| Branches | {covered_branches} | {num_branches} | {branches_pct:.1f}% |")
+    if has_funcs:
+        details.append(f"| Functions | {funcs_covered} | {funcs_total} | {funcs_pct:.1f}% |")
+    details.append(f"| Lines | {covered_lines} | {num_lines} | {lines_pct:.1f}% |")
 
     # Top 10 uncovered files
     files_data = data.get("files", {})
@@ -300,11 +315,11 @@ def build_e2e_section(data: dict | None) -> tuple[str, list[str]]:
 def main() -> None:
     reports_dir = Path(os.getenv("REPORTS_DIR", "."))
 
-    backend_data = _read_json(reports_dir / "backend-coverage-report" / "backend-coverage.json")
+    backend_data = _read_json(reports_dir / "backend-report" / "backend-coverage.json")
     frontend_unit_data = _read_json(
-        reports_dir / "frontend-unit-coverage-report" / "coverage-summary.json"
+        reports_dir / "frontend-unit-report" / "coverage-summary.json"
     )
-    e2e_data = _read_json(reports_dir / "frontend-e2e-coverage-report" / "flow-coverage.json")
+    e2e_data = _read_json(reports_dir / "frontend-e2e-report" / "flow-coverage.json")
 
     # Build sections
     backend_row, backend_details = build_backend_section(backend_data)

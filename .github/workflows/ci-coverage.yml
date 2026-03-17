@@ -63,7 +63,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-coverage-report
+          name: backend-report
           path: backend/coverage-reports/backend-coverage.json
           retention-days: 30
 
@@ -97,7 +97,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-unit-coverage-report
+          name: frontend-unit-report
           path: frontend/coverage/coverage-summary.json
           retention-days: 30
 
@@ -189,7 +189,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-e2e-coverage-report
+          name: frontend-e2e-report
           path: |
             frontend/e2e-results/flow-coverage.json
             frontend/e2e-results/results.json
@@ -226,22 +226,22 @@ jobs:
       - name: Download backend coverage report
         uses: actions/download-artifact@v4
         with:
-          name: backend-coverage-report
-          path: reports/backend-coverage-report
+          name: backend-report
+          path: reports/backend-report
         continue-on-error: true
 
       - name: Download frontend unit coverage report
         uses: actions/download-artifact@v4
         with:
-          name: frontend-unit-coverage-report
-          path: reports/frontend-unit-coverage-report
+          name: frontend-unit-report
+          path: reports/frontend-unit-report
         continue-on-error: true
 
       - name: Download E2E coverage report
         uses: actions/download-artifact@v4
         with:
-          name: frontend-e2e-coverage-report
-          path: reports/frontend-e2e-coverage-report
+          name: frontend-e2e-report
+          path: reports/frontend-e2e-report
         continue-on-error: true
 
       - name: Generate combined report
