@@ -15,8 +15,8 @@ test.describe('Home Page Load', () => {
   }, async ({ page }) => {
     await page.goto('/')
 
-    // The home page shows program links — at least one should be visible
-    await expect(page.getByRole('link', { name: /Programa de Inglés/i })).toBeVisible({ timeout: 10_000 })
+    // The home page shows the programs section with card grid
+    await expect(page.getByRole('heading', { name: 'Programas Profesionales' })).toBeVisible({ timeout: 10_000 })
   })
 
   test('displays statistics section', {
