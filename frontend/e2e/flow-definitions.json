@@ -1,0 +1,49 @@
+{
+  "flows": [
+    {
+      "id": "home-page-load",
+      "name": "Home Page Load",
+      "description": "User navigates to the home page and sees key content",
+      "priority": "critical",
+      "steps": [
+        "Navigate to /",
+        "Verify page title or heading is visible",
+        "Verify navigation bar is present",
+        "Verify footer is present"
+      ]
+    },
+    {
+      "id": "program-page-navigation",
+      "name": "Program Page Navigation",
+      "description": "User navigates to a specific program page via slug",
+      "priority": "critical",
+      "steps": [
+        "Navigate to /:slug (e.g. /ingles)",
+        "Verify program name is displayed",
+        "Verify program details section is visible"
+      ]
+    },
+    {
+      "id": "contact-form-submit",
+      "name": "Contact Form Submission",
+      "description": "User fills and submits the contact/lead form",
+      "priority": "critical",
+      "steps": [
+        "Navigate to a page with the contact form",
+        "Fill in name, email, phone, program fields",
+        "Submit the form",
+        "Verify success or error feedback"
+      ]
+    },
+    {
+      "id": "english-page-load",
+      "name": "English Page Load",
+      "description": "User navigates to the English program page",
+      "priority": "high",
+      "steps": [
+        "Navigate to /ingles",
+        "Verify English-specific content is visible"
+      ]
+    }
+  ]
+}

@@ -155,7 +155,7 @@ def test_build_suite_summary_sets_log_path_string(tmp_path):
     assert summary["log_path"] == str(log_path)
 
 
-def test_resolve_backend_coverage_root_prefers_core_app(tmp_path):
+def test_resolve_backend_source_root_prefers_core_app(tmp_path):
     backend_root = tmp_path / "backend"
     core_root = backend_root / "core_app"
     base_root = backend_root / "base_feature_app"
@@ -165,7 +165,7 @@ def test_resolve_backend_coverage_root_prefers_core_app(tmp_path):
     assert run_tests_all_suites.resolve_backend_coverage_root(backend_root) == core_root
 
 
-def test_resolve_backend_coverage_root_falls_back_to_base_feature_app(tmp_path):
+def test_resolve_backend_source_root_falls_back_to_base_feature_app(tmp_path):
     backend_root = tmp_path / "backend"
     base_root = backend_root / "base_feature_app"
     base_root.mkdir(parents=True)
@@ -341,7 +341,7 @@ def test_run_backend_skips_erase_when_disabled(tmp_path, monkeypatch):
     assert result.name == "backend"
 
 
-def test_erase_backend_data_uses_coverage_module(tmp_path, monkeypatch):
+def test_erase_backend_data_invokes_library_erase(tmp_path, monkeypatch):
     captured = {}
 
     class FakeCoverage:
