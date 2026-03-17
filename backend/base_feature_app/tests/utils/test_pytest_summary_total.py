@@ -40,6 +40,66 @@ _REPORT_PAYLOAD = {
     },
 }
 
+_MULTI_FILE_PAYLOAD = {
+    "totals": {
+        "num_statements": 15,
+        "missing_lines": 3,
+        "covered_lines": 12,
+        "percent_covered": 80.0,
+        "num_lines": 15,
+        "num_branches": 4,
+        "missing_branches": 1,
+        "covered_branches": 3,
+    },
+    "files": {
+        "sample.py": {
+            "summary": {
+                "num_statements": 10,
+                "missing_lines": 2,
+                "percent_covered": 80.0,
+            }
+        },
+        "other.py": {
+            "summary": {
+                "num_statements": 5,
+                "missing_lines": 1,
+                "percent_covered": 80.0,
+            }
+        },
+    },
+}
+
+
+_DEFAULT_SAMPLE = "def alpha():\n    return 1\n\ndef beta():\n    return 2\n"
+
+
+def _run_summary(tmp_path, monkeypatch, payload, extra_files=None, sample_content=_DEFAULT_SAMPLE):
+    """Set up fake coverage and run pytest_terminal_summary, returning output lines."""
+    coverage_file = tmp_path / ".coverage"
+    coverage_file.write_text("data", encoding="utf-8")
+
+    sample_path = tmp_path / "sample.py"
+    sample_path.write_text(sample_content, encoding="utf-8")
+    for name, content in (extra_files or {}).items():
+        (tmp_path / name).write_text(content, encoding="utf-8")
+
+    monkeypatch.setitem(sys.modules, "coverage", _make_fake_coverage(payload))
+
+    output: list[str] = []
+
+    class FakeTerminalReporter:
+        def write_sep(self, sep, title=None, **_kwargs):
+            output.append(f"{sep}{title}")
+
+        def write_line(self, message):
+            output.append(message)
+
+    class FakeConfig:
+        rootdir = tmp_path
+
+    backend_conftest.pytest_terminal_summary(FakeTerminalReporter(), 0, FakeConfig())
+    return output
+
 
 def _make_fake_coverage(report_payload):
     """Return a fake coverage module whose Coverage class writes *report_payload*."""
@@ -71,28 +131,7 @@ def _make_fake_coverage(report_payload):
 @pytest.fixture
 def summary_output(tmp_path, monkeypatch):
     """Run pytest_terminal_summary with a fake coverage backend, return captured output lines."""
-    coverage_file = tmp_path / ".coverage"
-    coverage_file.write_text("data", encoding="utf-8")
-
-    sample_path = tmp_path / "sample.py"
-    sample_path.write_text("def alpha():\n    return 1\n\ndef beta():\n    return 2\n", encoding="utf-8")
-
-    monkeypatch.setitem(sys.modules, "coverage", _make_fake_coverage(_REPORT_PAYLOAD))
-
-    output: list[str] = []
-
-    class FakeTerminalReporter:
-        def write_sep(self, sep, title=None, **_kwargs):
-            output.append(f"{sep}{title}")
-
-        def write_line(self, message):
-            output.append(message)
-
-    class FakeConfig:
-        rootdir = tmp_path
-
-    backend_conftest.pytest_terminal_summary(FakeTerminalReporter(), 0, FakeConfig())
-    return output
+    return _run_summary(tmp_path, monkeypatch, _REPORT_PAYLOAD)
 
 
 def test_pytest_summary_emits_one_combined_total_line(summary_output):
@@ -121,58 +160,13 @@ def test_pytest_summary_combined_total_shows_percent(summary_output):
 
 def test_pytest_summary_handles_multi_file_report(tmp_path, monkeypatch):
     """Report with a second non-sample file triggers FakeCoverageData.lines fallback."""
-    multi_file_payload = {
-        "totals": {
-            "num_statements": 15,
-            "missing_lines": 3,
-            "covered_lines": 12,
-            "percent_covered": 80.0,
-            "num_lines": 15,
-            "num_branches": 4,
-            "missing_branches": 1,
-            "covered_branches": 3,
-        },
-        "files": {
-            "sample.py": {
-                "summary": {
-                    "num_statements": 10,
-                    "missing_lines": 2,
-                    "percent_covered": 80.0,
-                }
-            },
-            "other.py": {
-                "summary": {
-                    "num_statements": 5,
-                    "missing_lines": 1,
-                    "percent_covered": 80.0,
-                }
-            },
-        },
-    }
-
-    coverage_file = tmp_path / ".coverage"
-    coverage_file.write_text("data", encoding="utf-8")
-
-    sample_path = tmp_path / "sample.py"
-    sample_path.write_text("def alpha():\n    return 1\n", encoding="utf-8")
-    other_path = tmp_path / "other.py"
-    other_path.write_text("def gamma():\n    return 3\n", encoding="utf-8")
-
-    monkeypatch.setitem(sys.modules, "coverage", _make_fake_coverage(multi_file_payload))
-
-    output: list[str] = []
-
-    class FakeTerminalReporter:
-        def write_sep(self, sep, title=None, **_kwargs):
-            output.append(f"{sep}{title}")
-
-        def write_line(self, message):
-            output.append(message)
-
-    class FakeConfig:
-        rootdir = tmp_path
-
-    backend_conftest.pytest_terminal_summary(FakeTerminalReporter(), 0, FakeConfig())
+    output = _run_summary(
+        tmp_path,
+        monkeypatch,
+        _MULTI_FILE_PAYLOAD,
+        extra_files={"other.py": "def gamma():\n    return 3\n"},
+        sample_content="def alpha():\n    return 1\n",
+    )
 
     combined_lines = [line for line in output if "TOTAL" in line]
     assert len(combined_lines) >= 1
