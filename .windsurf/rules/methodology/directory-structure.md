@@ -6,14 +6,11 @@ trigger: always_on
 ```mermaid
 flowchart TD
     Root[Project Root]
-    Root --> Docs[docs/]
-    Root --> Tasks[tasks/]
-    Root --> Cursor[.cursor/rules/]
-    Root --> CLINE[.clinerules]
-    Root --> SourceCode[src/]
-    Root --> Test[test/]
-    Root --> Utils[utils/]
-    Root --> Config[config/]
-    Root --> Data[data/]
-    Root --> Other[Other Directories]
+    Root --> Backend[backend/ — Django API]
+    Root --> Frontend[frontend/ — Vite + React SPA]
+    Root --> Scripts[scripts/ — Quality & tooling]
+    Root --> Docs[docs/ — Standards & methodology]
+    Root --> Tasks[tasks/ — Task tracking & RFCs]
+    Root --> Windsurf[.windsurf/rules/ — IDE rules & methodology]
+    Root --> GitHub[.github/workflows/ — CI]
 ```

@@ -47,8 +47,9 @@ This file captures important patterns, preferences, and project intelligence tha
 
 ## 4. Testing Insights
 
-- **Test Structure**: Mirrors source (`tests/models/`, `tests/views/`, etc.). 10 test files total.
-- **Missing Test Areas**: `tests/serializers/` and `tests/services/` are empty. No frontend tests at all.
+- **Backend Test Structure**: Mirrors source (`tests/models/`, `tests/views/`, `tests/services/`, `tests/commands/`, `tests/utils/`). 12 test files, 108 tests, 100% coverage.
+- **Frontend Unit Tests**: Vitest + @testing-library/react. 16 test files, 114 tests (components, pages, data, services, routes).
+- **Frontend E2E Tests**: Playwright with Chromium. 6 spec files, 17 tests, 6/6 flows covered.
 - **Factory Boy**: Available (`factory-boy==3.3.3`). Use factories over manual object creation.
 - **Freezegun**: Available (`freezegun==1.5.5`). Never use `datetime.now()` directly in tests.
 - **Quality Gate**: Pre-commit and CI enforce standards from `docs/TESTING_QUALITY_STANDARDS.md`.
@@ -69,5 +70,4 @@ This file captures important patterns, preferences, and project intelligence tha
 
 - **reCAPTCHA Bypass**: When `RECAPTCHA_SECRET_KEY` is empty, verification returns True (dev mode).
 - **Two Admin URLs**: `/admin/` (custom sections), `/admin-gallery/` (default Django admin). Intentional.
-- **Attachment Upload Path**: `media/attachments/{pk_hex}/{pk}/{uuid}.{ext}`.
 - **Custom Coverage Hook**: `conftest.py` suppresses pytest-cov's default terminal summary and replaces it with a richer custom report.
