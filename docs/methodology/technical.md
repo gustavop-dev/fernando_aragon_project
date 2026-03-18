@@ -9,7 +9,6 @@
 | Python | 3.12+ | Programming language |
 | Django | 6.0.2 | Web framework |
 | Django REST Framework | 3.16.1 | REST API toolkit |
-| djangorestframework-simplejwt | 5.5.1 | JWT authentication (configured, not yet active in views) |
 | django-cors-headers | 4.9.0 | CORS middleware |
 | python-dotenv | 1.2.1 | Environment variable management |
 | requests | 2.32.5 | HTTP client (reCAPTCHA verification) |
@@ -46,8 +45,6 @@
 | Recharts | 2.15.2 | Charts/data visualization |
 | Sonner | 2.0.3 | Toast notifications |
 | date-fns | 3.6.0 | Date utilities |
-| react-dnd | 16.0.1 | Drag and drop |
-| canvas-confetti | 1.9.4 | Confetti animations |
 | vaul | 1.1.2 | Drawer component |
 | cmdk | 1.1.1 | Command palette |
 | clsx + tailwind-merge | 2.1.1 / 3.2.0 | Class name utilities |
@@ -145,7 +142,7 @@ npm run dev
 
 4. **Service Layer Pattern** — Business logic (email sending) is encapsulated in `services/email_service.py`, not in views.
 
-5. **No Authentication Required** — The public website doesn't require user login. All API endpoints use `AllowAny` permission. JWT is installed but not actively used in current endpoints.
+5. **No Authentication Required** — The public website doesn't require user login. All API endpoints use `AllowAny` permission.
 
 6. **Huey for Background Tasks** — Lightweight alternative to Celery. Runs in immediate mode during development (no Redis required), uses Redis in production.
 
@@ -182,21 +179,27 @@ npm run dev
 - **Root conftest**: `backend/conftest.py` — custom coverage report with per-file breakdown, function coverage, and top-10 focus list
 - **App conftest**: `backend/base_feature_app/tests/conftest.py` — shared fixtures
 
-**Test file inventory (10 test files):**
+**Test file inventory (12 test files, 108 tests, 100% coverage):**
 
 | Directory | Files | Tests |
 |-----------|-------|-------|
 | `tests/models/` | `test_user_model.py` | User model tests |
 | `tests/views/` | `test_captcha_views.py`, `test_contact_views.py` | View/endpoint tests |
-| `tests/serializers/` | _(empty `__init__.py`)_ | — |
-| `tests/services/` | _(empty `__init__.py`)_ | — |
+| `tests/services/` | `test_email_service.py` | EmailService tests |
 | `tests/commands/` | `test_silk_garbage_collect.py`, `test_tasks.py` | Management command tests |
-| `tests/utils/` | `test_admin.py`, `test_forms.py`, `test_pytest_summary_total.py`, `test_run_tests_suites.py`, `test_urls.py` | Admin, forms, URLs, quality tooling tests |
+| `tests/utils/` | `test_admin.py`, `test_forms.py`, `test_fixtures_and_helpers.py`, `test_pytest_summary_total.py`, `test_run_tests_suites.py`, `test_settings.py`, `test_urls.py` | Admin, forms, URLs, quality tooling tests |
 
-### Frontend
+### Frontend Unit (Vitest)
 
-- **No test framework configured yet** — no Jest/Vitest/Playwright in `package.json`
-- This is a gap to address in future iterations
+- **Framework**: Vitest + @testing-library/react + jsdom
+- **Config**: `frontend/vitest.config.ts`
+- **114 tests** across 16 test files (components, pages, data, services, routes)
+
+### Frontend E2E (Playwright)
+
+- **Framework**: Playwright with Chromium
+- **Config**: `frontend/playwright.config.ts`
+- **17 tests** across 6 E2E spec files, 6/6 flows covered
 
 ### Quality Gate
 
@@ -294,8 +297,7 @@ fernando_aragon_project/
 ## 9. Constraints
 
 - **No CMS**: Program content changes require code edits to `programs.ts` / `curriculum.ts`
-- **No frontend tests**: Jest/Vitest/Playwright not yet configured in the frontend
 - **SQLite for dev**: Production requires MySQL (configured via env vars)
-- **Single Django app**: All business logic in `base_feature_app`; `django_attachments` is standalone but not actively connected
+- **Single Django app**: All business logic in `base_feature_app`
 - **Spanish-only**: No i18n framework configured; UI text is hardcoded in Spanish
 - **No SSR/SSG**: Pure SPA — no server-side rendering for SEO (relies on slug-based routing)

@@ -164,8 +164,8 @@ def test_weekly_slow_queries_report_includes_slow_query_data(settings, tmp_path)
 
     slow_query = SimpleNamespace(
         time_taken=1200.0,
-        request=SimpleNamespace(path='/api/products/'),
-        query='SELECT * FROM product WHERE id = 1',
+        request=SimpleNamespace(path='/api/contact/submit/'),
+        query='SELECT * FROM base_feature_app_user WHERE id = 1',
     )
 
     with (
@@ -182,7 +182,7 @@ def test_weekly_slow_queries_report_includes_slow_query_data(settings, tmp_path)
         weekly_slow_queries_report.call_local()
 
     content = (tmp_path / 'logs' / 'silk-weekly-report.log').read_text()
-    assert '/api/products/' in content
+    assert '/api/contact/submit/' in content
     assert '1200ms' in content
 
 
@@ -193,7 +193,7 @@ def test_weekly_slow_queries_report_includes_n_plus_one_suspects(settings, tmp_p
     settings.N_PLUS_ONE_THRESHOLD = 10
     settings.BASE_DIR = tmp_path
 
-    suspect = SimpleNamespace(query_count=25, path='/api/sales/')
+    suspect = SimpleNamespace(query_count=25, path='/api/google-captcha/verify/')
 
     with (
         patch('silk.models.Request') as mock_request_cls,
@@ -209,7 +209,7 @@ def test_weekly_slow_queries_report_includes_n_plus_one_suspects(settings, tmp_p
         weekly_slow_queries_report.call_local()
 
     content = (tmp_path / 'logs' / 'silk-weekly-report.log').read_text()
-    assert '/api/sales/' in content
+    assert '/api/google-captcha/verify/' in content
     assert '25 queries' in content
 
 

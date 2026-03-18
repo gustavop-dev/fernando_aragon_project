@@ -50,7 +50,7 @@
 | 5 | ~~`auth_utils.py` is empty~~ | ~~Low~~ | Removed in cleanup (2026-03-17) |
 | 6 | ~~Empty serializer/service test dirs~~ | ~~Low~~ | ✅ Resolved: `tests/services/test_email_service.py` added |
 | 7 | ~~django_attachments inactive~~ | ~~Low~~ | Removed in cleanup (2026-03-17) |
-| 8 | AllowAny on all endpoints | Medium | No authenticated endpoints; JWT installed but unused |
+| 8 | AllowAny on all endpoints | Medium | No authenticated endpoints — acceptable for public lead-gen site |
 | 9 | No input sanitization on frontend | Low | LeadForm relies solely on backend validation |
 | 10 | Hardcoded Spanish text | Low | No i18n framework; all UI text in Spanish |
 
@@ -129,5 +129,5 @@
 | 8 | ~~Wire django_attachments~~ | ~~Low~~ | Removed in cleanup |
 | 9 | Add Zod or similar frontend validation | Low | Low |
 | 10 | Set up i18n if English version needed | Low | High |
-| 11 | Clean up empty `auth_utils.py` | Low | Trivial |
+| 11 | ~~Clean up empty `auth_utils.py`~~ | ~~Low~~ | ✅ Done — removed in cleanup |
 | 12 | Add structured data (JSON-LD) for programs | Medium | Low |

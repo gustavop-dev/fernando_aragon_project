@@ -1,6 +1,6 @@
 # Active Context — Corporación Fernando de Aragón
 
-_Last updated: 2026-03-17 (post-coverage-report-emojis-and-test-gaps)_
+_Last updated: 2026-03-18 (post-base-project-remnants-cleanup)_
 
 ---
 
@@ -18,6 +18,16 @@ The site is in a **production-ready state** for its core purpose (lead capture),
 
 ## 2. Recent Focus Areas
 
+- **Base Project Remnants Cleanup (2026-03-18)** — Removed leftover config/dependencies/code from the `base_django_react_next_feature` fork:
+  - Removed `djangorestframework-simplejwt` from `requirements.txt` (installed but never used)
+  - Cleaned `.env.example`: removed JWT section, Google OAuth section (with real client ID), and `PAYMENT_GATEWAY_KEY`
+  - Fixed `create_fake_data.py`: removed calls to `create_blogs`/`create_products`/`create_sales` (commands don't exist)
+  - Fixed `delete_fake_data.py`: removed `Product`/`Blog`/`Sale` model imports and deletion logic (models don't exist — command would crash)
+  - Fixed `test_tasks.py`: replaced base project endpoint paths (`/api/products/`, `/api/sales/`) with Fernando's actual endpoints
+  - Updated `management/commands/README.md`: removed all blog/product/sale references
+  - Updated `docs/methodology/technical.md`: removed simplejwt/react-dnd/canvas-confetti ghost deps, updated testing section (was stale — said "no frontend tests"), removed `django_attachments` mention, updated constraints
+  - Updated `tasks/tasks_plan.md`: removed JWT mention from known issues, marked stale backlog items as done
+  - **108 backend tests pass, 100% coverage after all changes**
 - **Coverage Report Emojis & Test Gap Closure (2026-03-17)** — Enhanced CI coverage report with emojis/formatting and covered uncovered test code:
   - `combine-coverage-reports.py`: bold suite names, emoji detail summaries (🐍🧪🎭), emoji indicators on uncovered files, `### ✅ Test Results` section with passed/failed/skipped counts
   - `ci-coverage.yml`: added `--junitxml` for pytest, vitest JSON reporter, to feed test results into combined report
@@ -54,6 +64,7 @@ The site is in a **production-ready state** for its core purpose (lead capture),
 
 | Decision | Status | Notes |
 |----------|--------|-------|
+| Base project remnants cleanup | ✅ Done | Removed JWT dep, cleaned .env.example (JWT/Google OAuth/Payment), updated stale docs |
 | Coverage report emojis + test results | ✅ Done | Bold names, emoji summaries, test results section, JUnit XML + vitest JSON |
 | Frontend testing framework (Vitest) | ✅ Done | `vitest.config.ts`, setup file, 16 test files, 114 tests passing |
 | E2E testing with Playwright | ✅ Done | `playwright.config.ts`, 6 E2E files, 17 tests, 6/6 flows covered |

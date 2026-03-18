@@ -2,7 +2,7 @@
 
 This directory contains Django commands to create and delete test data (fake data) in the database.
 
-## 📋 Available Commands
+## Available Commands
 
 ### 1. Create Users
 
@@ -22,20 +22,14 @@ python manage.py create_users 15
 ### 2. Create All Fake Data (Master Command)
 
 ```bash
-python manage.py create_fake_data [number_of_records]
+python manage.py create_fake_data [number_of_users]
 ```
 
-**Example with single number:**
+**Examples:**
 ```bash
 python manage.py create_fake_data 20
-```
-
-**Example with specific user count:**
-```bash
 python manage.py create_fake_data --users 10
 ```
-
-> **Note:** This master command also accepts `--blogs`, `--products`, and `--sales` flags inherited from the base template. These sub-commands (`create_blogs`, `create_products`, `create_sales`) are not present in the current project and will fail if invoked. Use `create_users` directly or pass `--users` only.
 
 ---
 
@@ -45,27 +39,25 @@ python manage.py create_fake_data --users 10
 python manage.py delete_fake_data --confirm
 ```
 
-**⚠️ IMPORTANT:**
+**IMPORTANT:**
 - This command requires the `--confirm` flag to prevent accidental deletions.
 - **WILL NOT delete** administrator users or superusers (automatic protection).
 
-> **Note:** This command imports `Blog`, `Product`, and `Sale` models from the base template. If those models have been removed, the command will need to be updated to only delete Users.
-
 ---
 
-## 🔒 Administrator User Protection
+## Administrator User Protection
 
 The `delete_fake_data` command is designed to **automatically protect** administrator users:
 
-- ✅ **Keeps** users with `is_superuser=True`
-- ✅ **Keeps** users with `is_staff=True`
-- ❌ **Deletes** regular users (customers)
+- Keeps users with `is_superuser=True`
+- Keeps users with `is_staff=True`
+- Deletes regular users (customers)
 
 This ensures that system administration accounts are never accidentally deleted.
 
 ---
 
-## 📊 Generated Data Structure
+## Generated Data Structure
 
 ### User (`create_users`)
 - Unique email
@@ -77,7 +69,7 @@ This ensures that system administration accounts are never accidentally deleted.
 
 ---
 
-## 🎯 Recommended Workflow
+## Recommended Workflow
 
 1. **Create test users:**
    ```bash
@@ -95,7 +87,7 @@ This ensures that system administration accounts are never accidentally deleted.
 
 ---
 
-## 💡 Tips
+## Tips
 
 - Fake users have the password `password123` for easy testing.
 - Check the Django admin panel at `/admin` to manage users.
