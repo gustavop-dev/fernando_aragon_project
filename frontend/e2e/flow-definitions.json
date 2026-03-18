@@ -1,0 +1,55 @@
+{
+  "version": "1.1.0",
+  "lastUpdated": "2026-03-17",
+  "flows": {
+    "public-home": {
+      "name": "Home Page",
+      "module": "public",
+      "roles": ["visitor"],
+      "priority": "P1",
+      "description": "User navigates to the home page and sees hero, stats, programs, and footer",
+      "expectedSpecs": 1
+    },
+    "public-navigation": {
+      "name": "Site Navigation",
+      "module": "public",
+      "roles": ["visitor"],
+      "priority": "P1",
+      "description": "Shared layout with navbar, footer, WhatsApp button; sticky header and mobile hamburger menu",
+      "expectedSpecs": 1
+    },
+    "public-program-browse": {
+      "name": "Browse Program",
+      "module": "public",
+      "roles": ["visitor"],
+      "priority": "P1",
+      "description": "User navigates to a program page via slug and sees program details",
+      "expectedSpecs": 1
+    },
+    "public-english-page": {
+      "name": "English Program Page",
+      "module": "public",
+      "roles": ["visitor"],
+      "priority": "P2",
+      "description": "User navigates to the dedicated English program landing page",
+      "expectedSpecs": 1
+    },
+    "lead-submit-form": {
+      "name": "Submit Lead Form",
+      "module": "lead-capture",
+      "roles": ["visitor"],
+      "priority": "P1",
+      "description": "User fills and submits the lead capture form on the home page",
+      "expectedSpecs": 1,
+      "knownGaps": ["Does not test actual backend submission (no API mock)"]
+    },
+    "lead-whatsapp-cta": {
+      "name": "WhatsApp CTA",
+      "module": "lead-capture",
+      "roles": ["visitor"],
+      "priority": "P2",
+      "description": "User clicks the floating WhatsApp button to open a pre-filled WhatsApp conversation",
+      "expectedSpecs": 1
+    }
+  }
+}

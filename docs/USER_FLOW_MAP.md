@@ -1,22 +1,20 @@
 # User Flow Map
 
-**Single source of truth for all user flows in the application.**
+**Single source of truth for all user flows in the Corporación Fernando de Aragón website.**
 
-Use this document to understand each flow's steps, branching conditions, role restrictions, and API contracts before writing or reviewing E2E tests.
+Use this document to understand each flow's steps, branching conditions, and API contracts before writing or reviewing E2E tests.
 
-**Version:** 1.0.0
-**Last Updated:** 2026-02-24
+**Version:** 2.0.0
+**Last Updated:** 2026-03
 
 ---
 
 ## Table of Contents
 
 1. [Module Index](#module-index)
-2. [Auth Module](#auth-module)
-3. [Public Module](#public-module)
-4. [App Module](#app-module)
-5. [Backoffice Module](#backoffice-module)
-6. [Cross-Reference](#cross-reference)
+2. [Public Module](#public-module)
+3. [Lead Capture Module](#lead-capture-module)
+4. [Cross-Reference](#cross-reference)
 
 ---
 
@@ -24,221 +22,12 @@ Use this document to understand each flow's steps, branching conditions, role re
 
 | Flow ID | Name | Module | Priority | Roles | Frontend Route |
 |---------|------|--------|----------|-------|----------------|
-| `auth-sign-in` | Sign In | auth | P1 | guest | `/sign-in` |
-| `auth-sign-up` | Sign Up | auth | P1 | guest | `/sign-up` |
-| `auth-google-login` | Google OAuth Login | auth | P2 | guest | `/sign-in`, `/sign-up` |
-| `auth-forgot-password` | Forgot Password | auth | P2 | guest | `/forgot-password` |
-| `auth-sign-out` | Sign Out | auth | P2 | user | `/dashboard` |
-| `auth-session-persistence` | Session Persistence | auth | P2 | user | any protected route |
-| `public-home` | Home Page | public | P2 | guest | `/` |
-| `public-navigation` | Site Navigation | public | P3 | guest | all pages |
-| `public-catalog-browse` | Browse Catalog | public | P2 | guest | `/catalog` |
-| `public-product-detail` | Product Detail | public | P2 | guest | `/products/[productId]` |
-| `public-blogs-browse` | Browse Blogs | public | P3 | guest | `/blogs` |
-| `public-blog-detail` | Blog Detail | public | P3 | guest | `/blogs/[blogId]` |
-| `app-cart-add` | Add to Cart | app | P1 | guest | `/products/[productId]` |
-| `app-cart-manage` | Manage Cart | app | P1 | guest | `/checkout` |
-| `app-cart-persistence` | Cart Persistence | app | P2 | guest | `/checkout` |
-| `app-checkout-complete` | Complete Checkout | app | P1 | guest | `/checkout` |
-| `app-dashboard` | Dashboard | app | P2 | user | `/dashboard` |
-| `backoffice-users-list` | Users List | backoffice | P2 | staff | `/backoffice` |
-| `backoffice-sales-list` | Sales List | backoffice | P2 | staff | `/backoffice` |
-
----
-
-## Auth Module
-
-### auth-sign-in
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Roles** | guest |
-| **Frontend route** | `/sign-in` |
-| **API endpoints** | `POST /api/sign_in/` |
-
-**Preconditions:** User is not authenticated. A registered account exists.
-
-**Steps:**
-
-1. User navigates to `/sign-in`.
-2. Page renders form with **Email**, **Password** fields and **Sign in** button.
-3. User fills in email and password.
-4. User clicks **Sign in**.
-5. Frontend sends `POST /api/sign_in/` with `{ email, password }`.
-6. Backend validates credentials and returns `{ access, refresh }` (HTTP 200).
-7. Frontend stores tokens in cookies (`access_token`, `refresh_token`).
-8. Frontend redirects to `/dashboard`.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Empty email or password | HTML `required` prevents submission |
-| Email not registered | `401 { error: "Invalid credentials" }` — error below form |
-| Wrong password | `401 { error: "Invalid credentials" }` — error below form |
-| Account inactive | `403 { error: "Account is inactive" }` — error below form |
-
----
-
-### auth-sign-up
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Roles** | guest |
-| **Frontend route** | `/sign-up` |
-| **API endpoints** | `POST /api/sign_up/` |
-
-**Preconditions:** User is not authenticated.
-
-**Steps:**
-
-1. User navigates to `/sign-up`.
-2. Page renders form: **First Name**, **Last Name**, **Email**, **Password**, **Confirm Password**, **Create account** button.
-3. User fills in all fields.
-4. User clicks **Create account**.
-5. Frontend validates passwords match and length >= 8.
-6. Frontend sends `POST /api/sign_up/` with `{ email, password, first_name, last_name }`.
-7. Backend creates user and returns `{ access, refresh }` (HTTP 201).
-8. Frontend stores tokens and redirects to `/dashboard`.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Passwords do not match | Client error: "Passwords do not match" — no API call |
-| Password < 8 chars | Client error: "Password must be at least 8 characters" — no API call |
-| Email already registered | `400 { error: "User with this email already exists" }` |
-| Missing email or password | `400 { error: "Email and password are required" }` |
-
----
-
-### auth-google-login
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Roles** | guest |
-| **Frontend route** | `/sign-in`, `/sign-up` |
-| **API endpoints** | `POST /api/google_login/` |
-
-**Preconditions:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID` env var is set. User is not authenticated.
-
-**Steps:**
-
-1. User navigates to `/sign-in` or `/sign-up`.
-2. Google Sign-In button rendered via `@react-oauth/google`.
-3. User clicks Google button and completes OAuth consent.
-4. Frontend receives credential JWT, decodes `email`, `given_name`, `family_name`, `picture`.
-5. Frontend sends `POST /api/google_login/` with `{ credential, email, given_name, family_name, picture }`.
-6. Backend validates token via Google tokeninfo, gets or creates user.
-7. Backend returns `{ access, refresh, created, google_validated }` (HTTP 200).
-8. Frontend stores tokens and redirects to `/dashboard`.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` missing | "Missing NEXT_PUBLIC_GOOGLE_CLIENT_ID" shown instead of button |
-| Credential missing | `400 { error: "Google credential is required" }` |
-| Invalid credential (prod) | `401 { error: "Invalid Google credential" }` |
-| Audience mismatch (prod) | `401 { error: "Invalid Google client" }` |
-| New user | User created with unusable password; `created: true` |
-| Existing user | Matched by email; names updated if blank |
-
----
-
-### auth-forgot-password
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Roles** | guest |
-| **Frontend route** | `/forgot-password` |
-| **API endpoints** | `POST /api/send_passcode/`, `POST /api/verify_passcode_and_reset_password/` |
-
-**Preconditions:** User is not authenticated. A registered account exists.
-
-**Step A — Request passcode:**
-
-1. User navigates to `/forgot-password`.
-2. Page renders email input and **Send verification code** button (step = `email`).
-3. User enters email and clicks **Send verification code**.
-4. Frontend sends `POST /api/send_passcode/` with `{ email }`.
-5. Backend generates a `PasswordCode`, sends email with 6-digit code.
-6. Success message: "Verification code sent to your email". UI transitions to step = `code`.
-
-**Step B — Reset password:**
-
-7. Page renders **Code** (6-digit), **New Password**, **Confirm New Password** fields and **Reset password** button.
-8. User enters code and new password.
-9. Frontend validates passwords match and length >= 8.
-10. Frontend sends `POST /api/verify_passcode_and_reset_password/` with `{ email, code, new_password }`.
-11. Backend verifies code, updates password, marks code as used. Returns HTTP 200.
-12. Success message: "Password reset successfully! Redirecting..." — redirect to `/sign-in`.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Email not registered | API still returns `200 { message: "If the email exists, a code has been sent" }` (no leak) |
-| Email send failure | `500 { error: "Failed to send email" }` |
-| Invalid or expired code | `400 { error: "Invalid or expired code" }` |
-| Passwords do not match | Client error — no API call |
-| Password < 8 chars | Client error — no API call |
-| "Back to email" clicked | UI returns to step A |
-
----
-
-### auth-sign-out
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Roles** | user |
-| **Frontend route** | `/dashboard` |
-| **API endpoints** | None (client-side only) |
-
-**Preconditions:** User is authenticated.
-
-**Steps:**
-
-1. User is on `/dashboard`.
-2. User clicks **Sign out** button.
-3. Frontend clears JWT tokens from cookies via `authStore.signOut()`.
-4. User is redirected to `/sign-in` (or home) by the auth guard.
-
-**Branching conditions:** None — sign-out is always client-side.
-
----
-
-### auth-session-persistence
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Roles** | user |
-| **Frontend route** | any protected route |
-| **API endpoints** | `GET /api/validate_token/`, `POST /api/token/refresh/` |
-
-**Preconditions:** User has valid tokens in cookies.
-
-**Steps:**
-
-1. User navigates to a protected route (`/dashboard`, `/backoffice`).
-2. Frontend reads `access_token` from cookies.
-3. Frontend sends `GET /api/validate_token/` with Bearer token.
-4. Backend validates JWT and returns `{ valid: true, user: { id, email, first_name, last_name, role, is_staff } }`.
-5. User is shown the protected content.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| No tokens in cookies | Redirect to `/sign-in` via `useRequireAuth` hook |
-| Access token expired | Frontend calls `POST /api/token/refresh/` with refresh token |
-| Refresh token expired | Redirect to `/sign-in` |
+| `public-home` | Home Page | public | P1 | visitor | `/` |
+| `public-navigation` | Site Navigation | public | P1 | visitor | all pages |
+| `public-program-browse` | Browse Program | public | P1 | visitor | `/:slug` |
+| `public-english-page` | English Program Page | public | P2 | visitor | `/ingles` |
+| `lead-submit-form` | Submit Lead Form | lead-capture | P1 | visitor | `/`, `/:slug` |
+| `lead-whatsapp-cta` | WhatsApp CTA | lead-capture | P2 | visitor | all pages |
 
 ---
 
@@ -248,27 +37,30 @@ Use this document to understand each flow's steps, branching conditions, role re
 
 | Field | Value |
 |-------|-------|
-| **Priority** | P2 |
-| **Roles** | guest |
+| **Priority** | P1 |
+| **Roles** | visitor |
 | **Frontend route** | `/` |
-| **API endpoints** | `GET /api/products-data/`, `GET /api/blogs-data/` |
+| **API endpoints** | None (static data) |
 
 **Preconditions:** None.
 
 **Steps:**
 
 1. User navigates to `/`.
-2. Page renders hero section with heading "Everything you need, in one place".
-3. CTA buttons: **Shop now** (→ `/catalog`), **Read blogs** (→ `/blogs`), **Go to cart** (→ `/checkout`).
-4. **ProductCarousel** component loads products from API and displays cards.
-5. **BlogCarousel** component loads blogs from API and displays cards.
+2. Page renders hero section with institution branding and CTA button.
+3. Animated statistics section displays counters: 15+ Programs, 2500+ Graduates, 98% Employability, 20+ Years.
+4. Featured programs section shows program cards with icons and descriptions.
+5. Each program card links to its detail page (`/:slug`).
+6. Testimonials section displays graduate reviews in a carousel.
+7. Lead capture form (`LeadForm`) appears at the bottom of the page.
+8. Page scrolls to top on navigation.
 
 **Branching conditions:**
 
 | Condition | Behavior |
 |-----------|----------|
-| Products API unavailable | Carousel shows empty or error state |
-| Blogs API unavailable | Carousel shows empty or error state |
+| Mobile viewport | Responsive layout; hamburger menu in navbar |
+| Programs dropdown hover | Programs mega-menu opens in navbar |
 
 ---
 
@@ -276,8 +68,8 @@ Use this document to understand each flow's steps, branching conditions, role re
 
 | Field | Value |
 |-------|-------|
-| **Priority** | P3 |
-| **Roles** | guest |
+| **Priority** | P1 |
+| **Roles** | visitor |
 | **Frontend route** | all pages |
 | **API endpoints** | None |
 
@@ -285,342 +77,158 @@ Use this document to understand each flow's steps, branching conditions, role re
 
 **Steps:**
 
-1. Every page renders a shared header with navigation links.
-2. Header contains links to: Home (`/`), Catalog (`/catalog`), Blogs (`/blogs`), Sign-in (`/sign-in`).
-3. Footer is present on all pages.
-4. Navigation links work across page transitions.
-5. Browser back/forward buttons maintain correct history.
+1. Every page renders a shared `Layout` with `Navbar`, `Footer`, and `WhatsAppButton`.
+2. Navbar contains: logo (links to `/`), **Inicio** link, **Programas** dropdown (all 15+ programs), **Inglés** link, **Contacto** anchor.
+3. Navbar becomes sticky and adds shadow on scroll (`scrollY > 20`).
+4. On mobile: hamburger menu toggles a slide-out navigation panel.
+5. Programs dropdown lists all programs from `programs.ts` data, each linking to `/:slug`.
+6. Footer displays contact information, location, and institutional links.
+7. `WhatsAppButton` floats on every page as a persistent CTA.
+8. Page scrolls to top automatically on route change.
 
-**Branching conditions:** None — purely structural.
+**Branching conditions:**
+
+| Condition | Behavior |
+|-----------|----------|
+| Mobile viewport (`< 768px`) | Hamburger menu replaces horizontal nav; programs shown in collapsible accordion |
+| Desktop viewport | Full horizontal nav with hover dropdown for programs |
+| Click outside dropdown | Dropdown closes |
 
 ---
 
-### public-catalog-browse
+### public-program-browse
+
+| Field | Value |
+|-------|-------|
+| **Priority** | P1 |
+| **Roles** | visitor |
+| **Frontend route** | `/:slug` |
+| **API endpoints** | None (static data from `programs.ts`) |
+
+**Preconditions:** Program slug exists in `programs` array.
+
+**Steps:**
+
+1. User clicks a program card on Home or selects a program from the Navbar dropdown.
+2. React Router matches `/:slug` and renders `ProgramPage`.
+3. Component looks up program data from `programs.ts` by slug.
+4. Page renders:
+   - Hero section with program name, description, and hero image.
+   - Quick facts: duration, modules, modality, schedule, certification.
+   - Program objective and graduate profile.
+   - Functions and job titles list.
+   - "Why study this program?" highlights.
+   - `CurriculumSection` accordion with program modules (from `curriculum.ts`).
+   - `LeadForm` pre-selected with this program's name.
+5. User can submit the lead form (see `lead-submit-form` flow).
+
+**Branching conditions:**
+
+| Condition | Behavior |
+|-----------|----------|
+| Slug not found in `programs` | Page may render empty or show fallback |
+| Program has no `jobTitles` | Job titles section hidden |
+| Program has no curriculum data | Curriculum section hidden |
+
+---
+
+### public-english-page
 
 | Field | Value |
 |-------|-------|
 | **Priority** | P2 |
-| **Roles** | guest |
-| **Frontend route** | `/catalog` |
-| **API endpoints** | `GET /api/products-data/` |
+| **Roles** | visitor |
+| **Frontend route** | `/ingles` |
+| **API endpoints** | None (static data) |
 
 **Preconditions:** None.
 
 **Steps:**
 
-1. User navigates to `/catalog`.
-2. Page displays heading "Catalog" with loading skeleton.
-3. Frontend fetches `GET /api/products-data/` via `productStore.fetchProducts()`.
-4. Products render as a grid of `ProductCard` components (image, title, price).
-5. Each card links to `/products/[productId]`.
+1. User navigates to `/ingles` via Navbar link or Home CTA.
+2. Page renders a dedicated English program landing page.
+3. Content includes: MCER level structure (A1–C2), schedule options (morning, evening, Saturday), diagnostic test offer, certification details.
+4. `LeadForm` pre-selected with "Programa de Inglés".
+5. User can submit the lead form (see `lead-submit-form` flow).
 
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| API loading | Skeleton grid (12 placeholders) shown |
-| API error | "Catalog unavailable" message with **Retry** button |
-| No products in DB | "No products yet" dashed-border message |
+**Branching conditions:** None — dedicated static landing page.
 
 ---
 
-### public-product-detail
+## Lead Capture Module
+
+### lead-submit-form
 
 | Field | Value |
 |-------|-------|
-| **Priority** | P2 |
-| **Roles** | guest |
-| **Frontend route** | `/products/[productId]` |
-| **API endpoints** | `GET /api/products-data/` (single product fetch) |
-
-**Preconditions:** Product with given ID exists.
-
-**Steps:**
-
-1. User navigates to `/products/[productId]`.
-2. Page shows "Loading..." while fetching.
-3. Frontend fetches product data via `productStore.fetchProduct(id)`.
-4. Page renders: image gallery (up to 4 images), category label, title, price, description, **Add to cart** button.
-5. User can click **Add to cart** (see `app-cart-add` flow).
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Invalid product ID | "Loading..." remains or redirects |
-| No gallery images | Single gray placeholder square |
-
----
-
-### public-blogs-browse
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P3 |
-| **Roles** | guest |
-| **Frontend route** | `/blogs` |
-| **API endpoints** | `GET /api/blogs-data/` |
+| **Priority** | P1 |
+| **Roles** | visitor |
+| **Frontend route** | `/`, `/:slug`, `/ingles` |
+| **API endpoints** | `POST /api/contact/submit/` |
 
 **Preconditions:** None.
 
 **Steps:**
 
-1. User navigates to `/blogs`.
-2. Page displays heading "Blogs" with loading skeleton.
-3. Frontend fetches `GET /api/blogs-data/` via `blogStore.fetchBlogs()`.
-4. Blogs render as a grid of `BlogCard` components.
-5. Each card links to `/blogs/[blogId]`.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| API loading | Skeleton grid (9 placeholders) shown |
-| API error | "Blogs unavailable" message with **Retry** button |
-| No blogs in DB | "No blogs yet" dashed-border message |
-
----
-
-### public-blog-detail
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P3 |
-| **Roles** | guest |
-| **Frontend route** | `/blogs/[blogId]` |
-| **API endpoints** | `GET /api/blogs-data/[blogId]/` |
-
-**Preconditions:** Blog with given ID exists.
-
-**Steps:**
-
-1. User navigates to `/blogs/[blogId]`.
-2. Frontend fetches blog detail data.
-3. Page renders blog title, content, and associated media.
-4. User can navigate back to `/blogs` via browser back button.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Blog not found | Loading state or fallback |
-
----
-
-## App Module
-
-### app-cart-add
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Roles** | guest |
-| **Frontend route** | `/products/[productId]` |
-| **API endpoints** | None (client-side state via Zustand + localStorage) |
-
-**Preconditions:** User is on a product detail page.
-
-**Steps:**
-
-1. User views a product on `/products/[productId]`.
-2. User clicks **Add to cart** button.
-3. `cartStore.addToCart(product, 1)` adds the product with quantity 1 to local state.
-4. Cart state persists to `localStorage`.
-5. User can navigate to `/checkout` to see the item.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Product already in cart | Quantity incremented |
-| Product not in cart | New entry added with quantity 1 |
-
----
-
-### app-cart-manage
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Roles** | guest |
-| **Frontend route** | `/checkout` |
-| **API endpoints** | None (client-side state) |
-
-**Preconditions:** User has at least one item in cart.
-
-**Steps:**
-
-1. User navigates to `/checkout`.
-2. Cart section displays each item: image, title, price, quantity input, **Remove** button, line total.
-3. **Update quantity:** User changes the number input → `cartStore.updateQuantity(id, qty)`.
-4. **Remove item:** User clicks **Remove** → `cartStore.removeFromCart(id)`.
-5. **Subtotal** recalculates automatically: `items.reduce((acc, item) => acc + item.price * item.quantity, 0)`.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Cart is empty | "Your cart is empty." message; checkout button disabled |
-| Single item removed | If last item, shows empty cart message |
-| Quantity set to 0 or negative | Minimum enforced by `min={1}` on input |
-
----
-
-### app-cart-persistence
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Roles** | guest |
-| **Frontend route** | `/checkout` |
-| **API endpoints** | None |
-
-**Preconditions:** User has items in cart.
-
-**Steps:**
-
-1. User adds products to cart (see `app-cart-add`).
-2. User reloads the page or navigates away and returns.
-3. Cart state is restored from `localStorage` via Zustand persist middleware.
-4. All items, quantities, and subtotal remain intact.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| localStorage cleared | Cart resets to empty |
-| Corrupt localStorage data | Cart may reset to empty (Zustand default) |
-
----
-
-### app-checkout-complete
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Roles** | guest |
-| **Frontend route** | `/checkout` |
-| **API endpoints** | `POST /api/create-sale/` |
-
-**Preconditions:** User has at least one item in cart.
-
-**Steps:**
-
-1. User navigates to `/checkout` with items in cart.
-2. Shipping form displays: **Email**, **Address**, **City**, **State**, **Postal code** fields.
-3. User fills in all shipping fields.
-4. **Complete checkout** button becomes enabled (requires non-empty cart).
-5. User clicks **Complete checkout**.
-6. Frontend builds payload:
+1. User sees the `LeadForm` component on any page (Home, program page, or English page).
+2. Form displays fields: **Nombre** (name), **Correo** (email), **Teléfono** (phone), **Programa** (program selector).
+3. If on a program page, the program selector is pre-filled with the current program name.
+4. User fills in all required fields.
+5. User clicks **Enviar** (submit) button.
+6. Frontend shows loading state (spinner on button).
+7. Frontend sends `POST /api/contact/submit/` with:
    ```json
    {
-     "email": "...",
-     "address": "...",
-     "city": "...",
-     "state": "...",
-     "postal_code": "...",
-     "sold_products": [{ "product_id": 1, "quantity": 2 }, ...]
+     "name": "Full Name",
+     "email": "user@example.com",
+     "phone": "+57 300 123 4567",
+     "program": "Programa de Inglés",
+     "captcha_token": ""
    }
    ```
-7. Frontend sends `POST /api/create-sale/` with payload.
-8. Backend creates `Sale` + associated `SoldProduct` records (HTTP 201).
-9. Frontend clears cart via `cartStore.clearCart()`.
-10. Success message: "Checkout completed."
+8. Backend validates data via `ContactFormSerializer`.
+9. Backend optionally verifies reCAPTCHA token (if `captcha_token` is non-empty and `RECAPTCHA_SECRET_KEY` is configured).
+10. Backend sends notification email via `EmailService.send_contact_notification()`.
+11. Backend returns `{ success: true, detail: "Mensaje enviado correctamente." }` (HTTP 200).
+12. Frontend shows success state (checkmark icon + confirmation message).
+13. Form resets for a new submission.
 
 **Branching conditions:**
 
 | Condition | Behavior |
 |-----------|----------|
-| Cart is empty | **Complete checkout** button disabled (`disabled={!items.length}`) |
-| API failure | Error message: "Could not complete checkout." |
-| Button shows loading state | Text changes to "..." during submission |
-| Invalid product ID in payload | `400` with serializer errors |
+| Empty required fields | HTML `required` prevents submission |
+| Invalid email format | Serializer returns `400 { success: false, errors: { email: [...] } }` |
+| reCAPTCHA token provided but invalid | `400 { success: false, detail: "reCAPTCHA verification failed." }` |
+| Email service failure | `500 { success: false, detail: "Error al enviar el mensaje. Intenta de nuevo." }` |
+| No `RECAPTCHA_SECRET_KEY` configured | Captcha verification is skipped (development mode) |
 
 ---
 
-### app-dashboard
+### lead-whatsapp-cta
 
 | Field | Value |
 |-------|-------|
 | **Priority** | P2 |
-| **Roles** | user |
-| **Frontend route** | `/dashboard` |
-| **API endpoints** | `GET /api/validate_token/` (via auth guard) |
+| **Roles** | visitor |
+| **Frontend route** | all pages |
+| **API endpoints** | None |
 
-**Preconditions:** User is authenticated with valid JWT.
+**Preconditions:** None.
 
 **Steps:**
 
-1. User navigates to `/dashboard`.
-2. `useRequireAuth()` hook validates the token.
-3. If authenticated, page renders: heading "Dashboard", link to **Backoffice**, **Sign out** button.
-4. User can click **Backoffice** to navigate to `/backoffice`.
-5. User can click **Sign out** to clear session (see `auth-sign-out`).
+1. `WhatsAppButton` component renders as a floating button on every page (bottom-right).
+2. User clicks the WhatsApp button.
+3. Browser opens `https://wa.me/<phone-number>` with a pre-filled message in a new tab.
+4. User continues the conversation in WhatsApp.
 
 **Branching conditions:**
 
 | Condition | Behavior |
 |-----------|----------|
-| Not authenticated | Redirect to `/sign-in` |
-| Token expired | Attempt refresh; if fail, redirect to `/sign-in` |
-
----
-
-## Backoffice Module
-
-### backoffice-users-list
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Roles** | staff |
-| **Frontend route** | `/backoffice` |
-| **API endpoints** | `GET /api/users/` |
-
-**Preconditions:** User is authenticated with `is_staff = true`.
-
-**Steps:**
-
-1. User navigates to `/backoffice`.
-2. `useRequireAuth()` hook validates the token.
-3. Frontend fetches `GET /api/users/` with Bearer token.
-4. Users table renders columns: **Email**, **Role**, **Staff**, **Active**.
-5. Each row shows user data.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Not authenticated | Redirect to `/sign-in` |
-| Not staff | `403` error — "Could not load backoffice data. Make sure you are signed in with a staff user." |
-| No users | "No data" row shown |
-
----
-
-### backoffice-sales-list
-
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Roles** | staff |
-| **Frontend route** | `/backoffice` |
-| **API endpoints** | `GET /api/sales/` |
-
-**Preconditions:** User is authenticated with `is_staff = true`.
-
-**Steps:**
-
-1. User navigates to `/backoffice` (loaded together with users).
-2. Frontend fetches `GET /api/sales/` with Bearer token.
-3. Sales table renders columns: **Id**, **Email**, **City**, **State**, **Postal**.
-4. Each row shows sale data.
-
-**Branching conditions:**
-
-| Condition | Behavior |
-|-----------|----------|
-| Not staff | Same error as `backoffice-users-list` (both fetched in parallel) |
-| No sales | "No data" row shown |
+| Mobile device | Opens WhatsApp app directly |
+| Desktop device | Opens WhatsApp Web in browser |
 
 ---
 
@@ -628,16 +236,17 @@ Use this document to understand each flow's steps, branching conditions, role re
 
 | Artifact | Path | Purpose |
 |----------|------|---------|
-| Flow Definitions (JSON) | `e2e/flow-definitions.json` | Machine-readable flow registry for the E2E reporter |
-| Flow Tag Constants | `e2e/helpers/flow-tags.ts` | Reusable tag arrays for Playwright tests |
-| E2E Spec Files | `e2e/<module>/*.spec.ts` | Playwright test implementations per module |
-| Flow Coverage Report | `e2e-results/flow-coverage.json` | Auto-generated coverage status per flow |
-| Architecture Standard | `docs/DJANGO_REACT_ARCHITECTURE_STANDARD.md` | Sections 3.7.5–3.7.10 define the flow methodology |
-| E2E Flow Coverage Standard | `docs/E2E_FLOW_COVERAGE_REPORT_STANDARD.md` | Reporter implementation and JSON schema |
+| Program Data | `frontend/src/app/data/programs.ts` | All program definitions (slug, name, icon, description, etc.) |
+| Curriculum Data | `frontend/src/app/data/curriculum.ts` | Curriculum modules per program |
+| API Client | `frontend/src/app/services/api.ts` | `submitContactForm()` function |
+| Contact Serializer | `backend/base_feature_app/serializers/contact.py` | Lead form data validation |
+| Contact View | `backend/base_feature_app/views/contact.py` | Lead form submission endpoint |
+| Email Service | `backend/base_feature_app/services/email_service.py` | Notification email logic |
+| Architecture Standard | `docs/DJANGO_REACT_ARCHITECTURE_STANDARD.md` | Generic architecture reference |
 
 ### Maintenance Rules
 
-- **Adding a new flow:** Add entry here with full steps/branches, then add to `e2e/flow-definitions.json`, then create E2E tests.
+- **Adding a new flow:** Add entry here with full steps/branches, then create corresponding tests.
 - **Modifying a flow:** Update steps and branches in this document first, then update tests accordingly.
-- **Removing a flow:** Remove from this document, `e2e/flow-definitions.json`, and all `@flow:` tags in specs.
+- **Adding a new program:** Add to `frontend/src/app/data/programs.ts`. No flow map changes needed unless the page structure changes.
 - **Bump `Version` and `Last Updated`** on every change.

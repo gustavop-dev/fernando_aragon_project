@@ -5,9 +5,7 @@ django-cors-headers==4.9.0
 django-dbbackup>=4.0.0
 django-silk>=5.0.0
 djangorestframework==3.16.1
-djangorestframework-simplejwt==5.5.1
 python-dotenv==1.2.1
-easy-thumbnails==2.10.1
 Faker==40.5.1
 huey>=2.5.0
 pillow==12.1.1
