@@ -83,6 +83,13 @@ bash ~/scripts/full-diagnostic.sh
 - **Media**: `/home/ryzepeck/webapps/fernando_aragon_project/backend/media/`
 - **Resource limits**: MemoryMax=250MB, CPUQuota=40%, OOMScoreAdjust=300
 
+## Cleanup
+
+9. Remove `node_modules` to save disk space (frontend already compiled):
+```bash
+rm -rf /home/ryzepeck/webapps/fernando_aragon_project/frontend/node_modules
+```
+
 ## Notes
 
 - `~/scripts` is a symlink to `/home/ryzepeck/webapps/ops/vps/`.

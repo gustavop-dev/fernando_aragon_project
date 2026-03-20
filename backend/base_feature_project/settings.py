@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+from decouple import Csv, config
 from huey import RedisHuey
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -22,20 +22,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
-load_dotenv(BASE_DIR / '.env')
-
 # Environment detection
-DJANGO_ENV = os.getenv('DJANGO_ENV', 'development')
+DJANGO_ENV = config('DJANGO_ENV', default='development')
 IS_PRODUCTION = DJANGO_ENV == 'production'
-ENABLE_SILK = os.getenv('ENABLE_SILK', 'false').lower() in {'1', 'true', 'yes', 'on'}
+ENABLE_SILK = config('ENABLE_SILK', default=False, cast=bool)
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'change-me')
+SECRET_KEY = config('DJANGO_SECRET_KEY', default='change-me')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() in {'1', 'true', 'yes', 'on'}
+DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',') if h.strip()]
+ALLOWED_HOSTS = config('DJANGO_ALLOWED_HOSTS', default='', cast=Csv())
 
 
 # Application definition
@@ -74,12 +72,11 @@ MIDDLEWARE += [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    o.strip() for o in os.getenv(
-        'DJANGO_CORS_ALLOWED_ORIGINS',
-        'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:3000,http://localhost:3000',
-    ).split(',') if o.strip()
-]
+CORS_ALLOWED_ORIGINS = config(
+    'DJANGO_CORS_ALLOWED_ORIGINS',
+    default='http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:3000,http://localhost:3000',
+    cast=Csv(),
+)
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -95,12 +92,11 @@ CORS_ALLOW_HEADERS = [
     'x-currency',
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    o.strip() for o in os.getenv(
-        'DJANGO_CSRF_TRUSTED_ORIGINS',
-        'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:3000,http://localhost:3000',
-    ).split(',') if o.strip()
-]
+CSRF_TRUSTED_ORIGINS = config(
+    'DJANGO_CSRF_TRUSTED_ORIGINS',
+    default='http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:3000,http://localhost:3000',
+    cast=Csv(),
+)
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
@@ -132,17 +128,17 @@ WSGI_APPLICATION = 'base_feature_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-_db_engine = os.getenv('DJANGO_DB_ENGINE', 'django.db.backends.sqlite3')
+_db_engine = config('DJANGO_DB_ENGINE', default='django.db.backends.sqlite3')
 _db_config = {
     'ENGINE': _db_engine,
-    'NAME': os.getenv('DJANGO_DB_NAME', str(BASE_DIR / 'db.sqlite3')),
+    'NAME': config('DJANGO_DB_NAME', default=str(BASE_DIR / 'db.sqlite3')),
 }
 if 'sqlite3' not in _db_engine:
     _db_config.update({
-        'USER': os.getenv('DB_USER', ''),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '3306'),
+        'USER': config('DB_USER', default=''),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT', default='3306'),
     })
 DATABASES = {'default': _db_config}
 
@@ -182,7 +178,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
@@ -190,7 +186,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = BASE_DIR / 'media'
 
 STORAGES = {
     'default': {
@@ -205,30 +201,30 @@ STORAGES = {
     'dbbackup': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
         'OPTIONS': {
-            'location': os.getenv('BACKUP_STORAGE_PATH', '/var/backups/base_feature_project'),
+            'location': config('BACKUP_STORAGE_PATH', default='/var/backups/fernando_aragon_project'),
         },
     },
 }
 
 # Email configuration (for password reset codes)
-EMAIL_HOST = os.getenv('DJANGO_EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('DJANGO_EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.getenv('DJANGO_EMAIL_USE_TLS', 'true').lower() in {'1', 'true', 'yes', 'on'}
-EMAIL_HOST_USER = os.getenv('DJANGO_EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('DJANGO_EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DJANGO_DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-EMAIL_BACKEND = os.getenv('DJANGO_EMAIL_BACKEND') or (
+EMAIL_HOST = config('DJANGO_EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('DJANGO_EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('DJANGO_EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('DJANGO_EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('DJANGO_EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DJANGO_DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
+EMAIL_BACKEND = config('DJANGO_EMAIL_BACKEND', default='') or (
     'django.core.mail.backends.smtp.EmailBackend'
     if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD
     else 'django.core.mail.backends.console.EmailBackend'
 )
-CONTACT_NOTIFICATION_EMAIL = os.getenv('CONTACT_NOTIFICATION_EMAIL', DEFAULT_FROM_EMAIL)
+CONTACT_NOTIFICATION_EMAIL = config('CONTACT_NOTIFICATION_EMAIL', default=DEFAULT_FROM_EMAIL)
 
 # ---------------------------------------------------------------------------
 # Google reCAPTCHA
 # ---------------------------------------------------------------------------
-RECAPTCHA_SITE_KEY = os.getenv('RECAPTCHA_SITE_KEY', '')
-RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY', '')
+RECAPTCHA_SITE_KEY = config('RECAPTCHA_SITE_KEY', default='')
+RECAPTCHA_SECRET_KEY = config('RECAPTCHA_SECRET_KEY', default='')
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -236,7 +232,7 @@ RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY', '')
 _logs_dir = BASE_DIR / 'logs'
 _logs_dir.mkdir(exist_ok=True)
 
-LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
+LOG_LEVEL = config('DJANGO_LOG_LEVEL', default='INFO')
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -253,8 +249,10 @@ LOGGING = {
         },
         'backup_file': {
             'level': 'INFO',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': _logs_dir / 'backups.log',
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 3,
             'formatter': 'verbose',
         },
     },
@@ -290,34 +288,47 @@ DBBACKUP_CLEANUP_KEEP_MEDIA = 4
 # ---------------------------------------------------------------------------
 HUEY = RedisHuey(
     name='fernando_aragon_project',
-    url=os.getenv('REDIS_URL', 'redis://localhost:6379/1'),
+    url=config('REDIS_URL', default='redis://localhost:6379/7'),
     immediate=not IS_PRODUCTION,
 )
 
 # ---------------------------------------------------------------------------
 # Query Profiling (django-silk) — enabled via ENABLE_SILK env var
 # Production-only: DB recording for slow-query and N+1 monitoring.
-# The /silk/ UI is intentionally not exposed (see urls.py).
+# Silk UI available at /silk/ (superuser-only, see urls.py).
 # ---------------------------------------------------------------------------
 if ENABLE_SILK:
+    SILKY_PYTHON_PROFILER = True
+    SILKY_PYTHON_PROFILER_BINARY = True
+    SILKY_META = True
     SILKY_ANALYZE_QUERIES = True
+
+    SILKY_AUTHENTICATION = True
+    SILKY_AUTHORISATION = True
+
+    def silk_permissions(user):
+        return user.is_superuser
+
+    SILKY_PERMISSIONS = silk_permissions
 
     SILKY_MAX_RECORDED_REQUESTS = 10_000
     SILKY_MAX_RECORDED_REQUESTS_CHECK_PERCENT = 10
 
     SILKY_IGNORE_PATHS = [
         '/admin/',
+        '/admin-gallery/',
         '/static/',
         '/media/',
+        '/silk/',
     ]
 
-    SILKY_MAX_REQUEST_BODY_SIZE = 0
-    SILKY_MAX_RESPONSE_BODY_SIZE = 0
+    SILKY_MAX_REQUEST_BODY_SIZE = 1024
+    SILKY_MAX_RESPONSE_BODY_SIZE = 1024
 
     def _silk_intercept(request):
         return request.path.startswith('/api/')
 
     SILKY_INTERCEPT_FUNC = _silk_intercept
 
-SLOW_QUERY_THRESHOLD_MS = int(os.getenv('SLOW_QUERY_THRESHOLD_MS', '500'))
-N_PLUS_ONE_THRESHOLD = int(os.getenv('N_PLUS_ONE_THRESHOLD', '10'))
+SLOW_QUERY_THRESHOLD_MS = config('SLOW_QUERY_THRESHOLD_MS', default=500, cast=int)
+N_PLUS_ONE_THRESHOLD = config('N_PLUS_ONE_THRESHOLD', default=10, cast=int)

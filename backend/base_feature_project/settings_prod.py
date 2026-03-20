@@ -8,7 +8,7 @@ lives in settings.py; this file only contains production overrides and
 validations.
 """
 
-import os
+from decouple import config
 
 from .settings import *  # noqa: F401,F403
 
@@ -20,10 +20,10 @@ DEBUG = False
 # ---------------------------------------------------------------------------
 # Required environment variables — fail fast if missing
 # ---------------------------------------------------------------------------
-if not os.getenv('DJANGO_SECRET_KEY'):
+if not config('DJANGO_SECRET_KEY', default=''):
     raise ValueError("DJANGO_SECRET_KEY is required in production")
 
-if not os.getenv('DJANGO_ALLOWED_HOSTS'):
+if not config('DJANGO_ALLOWED_HOSTS', default=''):
     raise ValueError("DJANGO_ALLOWED_HOSTS is required in production")
 
 # ---------------------------------------------------------------------------
@@ -49,8 +49,10 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 # ---------------------------------------------------------------------------
 LOGGING['handlers']['file'] = {  # noqa: F405
     'level': 'WARNING',
-    'class': 'logging.FileHandler',
+    'class': 'logging.handlers.RotatingFileHandler',
     'filename': BASE_DIR / 'logs' / 'django.log',  # noqa: F405
+    'maxBytes': 5 * 1024 * 1024,
+    'backupCount': 3,
     'formatter': 'verbose',
 }
 LOGGING['loggers']['django']['handlers'].append('file')  # noqa: F405

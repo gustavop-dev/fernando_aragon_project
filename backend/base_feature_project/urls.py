@@ -17,5 +17,8 @@ urlpatterns = [
     path('api/', include('base_feature_app.urls')),
 ]
 
+if getattr(settings, 'ENABLE_SILK', False):
+    urlpatterns += [path('silk/', include('silk.urls', namespace='silk'))]
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

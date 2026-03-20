@@ -70,6 +70,13 @@ sudo tail -20 /var/log/nginx/error.log
 - **Static**: `/home/ryzepeck/webapps/fernando_aragon_project/backend/staticfiles/`
 - **Frontend dist**: `/home/ryzepeck/webapps/fernando_aragon_project/frontend/dist/`
 
+## Cleanup
+
+9. Remove `node_modules` to save disk space (frontend already compiled):
+```bash
+rm -rf /home/ryzepeck/webapps/fernando_aragon_project/frontend/node_modules
+```
+
 ## Notes
 
 - `~/scripts` es un symlink a `/home/ryzepeck/webapps/ops/vps/`.

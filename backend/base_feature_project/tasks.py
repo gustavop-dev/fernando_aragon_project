@@ -2,13 +2,14 @@
 Scheduled operational tasks with Huey.
 
 Tasks:
-- scheduled_backup: DB + media backup every 20 days (days 1 & 21, 3:00 AM)
-- silk_garbage_collection: Daily cleanup of Silk profiling data (4:00 AM)
-- weekly_slow_queries_report: Weekly performance report (Mondays 8:00 AM)
+- scheduled_backup: DB + media backup weekly (Sunday 3:30 AM UTC)
+- silk_garbage_collection: Daily cleanup of Silk profiling data (4:15 AM)
+- weekly_slow_queries_report: Weekly performance report (Friday 7:30 AM)
+- silk_reports_cleanup: Monthly cleanup of old Silk reports (1st of month 5:15 AM)
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 
@@ -29,7 +30,7 @@ def scheduled_backup():
     """
     from django.core.management import call_command
 
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+    timestamp = timezone.now().strftime('%Y-%m-%d_%H%M%S')
 
     logger.info(f"=== Starting scheduled backup {timestamp} ===")
 
@@ -139,17 +140,42 @@ def weekly_slow_queries_report():
     report_lines.extend(["", "=" * 60])
     report = "\n".join(report_lines)
 
-    # Save to log file
-    log_path = Path(settings.BASE_DIR) / 'logs' / 'silk-weekly-report.log'
-    log_path.parent.mkdir(exist_ok=True)
-
-    with open(log_path, 'a') as f:
-        f.write(report + "\n\n")
+    # Save to dated log file in silk-reports/
+    reports_dir = Path(settings.BASE_DIR) / 'logs' / 'silk-reports'
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    (reports_dir / f'silk-report-{timezone.now():%Y-%m-%d}.log').write_text(
+        report + '\n'
+    )
 
     logger.info(
-        f"Weekly report generated. "
-        f"Slow queries: {slow_queries.count()}, "
-        f"N+1 suspects: {n_plus_one_suspects.count()}"
+        'Weekly report generated. Slow: %d, N+1: %d',
+        slow_queries.count(), n_plus_one_suspects.count(),
     )
 
     return report
+
+
+@periodic_task(crontab(day='1', hour='5', minute='15'))
+def silk_reports_cleanup():
+    """
+    Monthly cleanup of Silk report files older than 6 months.
+    Runs on the 1st of each month at 5:15 AM.
+    Only runs when Silk is enabled.
+    """
+    if not getattr(settings, 'ENABLE_SILK', False):
+        return
+
+    reports_dir = Path(settings.BASE_DIR) / 'logs' / 'silk-reports'
+    if not reports_dir.exists():
+        return
+
+    cutoff = timezone.now() - timedelta(days=180)
+    deleted = 0
+
+    for log_file in reports_dir.glob('silk-report-*.log'):
+        if log_file.stat().st_mtime < cutoff.timestamp():
+            log_file.unlink()
+            deleted += 1
+
+    if deleted:
+        logger.info('silk_reports_cleanup: removed %d old reports', deleted)
