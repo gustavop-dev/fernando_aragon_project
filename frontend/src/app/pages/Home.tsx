@@ -17,6 +17,7 @@ import {
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import AnimatedCounter from "../components/AnimatedCounter";
 import LeadForm from "../components/LeadForm";
+import CelacCertificates from "../components/CelacCertificates";
 import { programs } from "../data/programs";
 
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -188,6 +189,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Certificaciones CELAC */}
+      <CelacCertificates />
 
       {/* Sobre Nosotros */}
       <section className="py-24 bg-white" id="nosotros">
