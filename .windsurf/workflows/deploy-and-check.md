@@ -73,7 +73,7 @@ bash ~/scripts/full-diagnostic.sh
 
 ## Architecture Reference
 
-- **Domain**: `fernandodearagon.projectapp.co`
+- **Domain**: `fernandodearagon.edu.co`
 - **Backend**: Django (`base_feature_project` module), `DJANGO_SETTINGS_MODULE=base_feature_project.settings_prod`
 - **Frontend**: Vite + React SPA → `frontend/dist/` served by nginx
 - **Services**: `fernando_aragon_project.service` (Gunicorn via socket), `fernando-aragon-huey.service`
