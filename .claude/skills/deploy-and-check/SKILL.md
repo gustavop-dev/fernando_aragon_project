@@ -17,7 +17,7 @@ Run these steps on the production server at `/home/ryzepeck/webapps/fernando_ara
 
 1. Quick status snapshot before deploy:
 ```bash
-bash ~/scripts/quick-status.sh
+bash /home/ryzepeck/webapps/ops/vps/scripts/diagnostics/quick-status.sh
 ```
 
 ## Deploy Steps
@@ -51,7 +51,7 @@ sudo systemctl restart fernando_aragon_project && sudo systemctl restart fernand
 
 7. Run post-deploy check for fernando_aragon_project:
 ```bash
-bash ~/scripts/post-deploy-check.sh fernando_aragon_project
+bash /home/ryzepeck/webapps/ops/vps/scripts/deployment/post-deploy-check.sh fernando_aragon_project
 ```
 Expected: PASS on all checks, FAIL=0.
 
@@ -82,7 +82,7 @@ rm -rf /home/ryzepeck/webapps/fernando_aragon_project/frontend/node_modules
 
 ## Notes
 
-- `~/scripts` es un symlink a `/home/ryzepeck/webapps/ops/vps/`.
+- VPS operations scripts live in `/home/ryzepeck/webapps/ops/vps/scripts/`.
 - `DJANGO_ENV=production` debe estar seteado para `migrate` y `collectstatic`.
 - El unit de systemd `fernando_aragon_project.service` setea `DJANGO_ENV=production` automáticamente para el servicio en ejecución.
 - El frontend es una SPA servida estáticamente por Nginx desde `frontend/dist/`, no por Django.
