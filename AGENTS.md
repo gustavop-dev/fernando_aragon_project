@@ -9,7 +9,7 @@
 
 - **Name**: Fernando Aragon
 - **Domain**: `fernandodearagon.edu.co` / `www.fernandodearagon.edu.co`
-- **Stack**: Django 5 + DRF (backend) / Nuxt 3 + Vue 3 (frontend) / MySQL 8 / Redis / Huey
+- **Stack**: Django 6.0.2 + DRF (backend) / React 18.3 + Vite 7 SPA (frontend) / MySQL 8 / Redis / Huey
 - **Server path**: `/home/ryzepeck/webapps/fernando_aragon_project`
 - **Services**: `fernando_aragon_project.service` (Gunicorn), `fernando_aragon_project.socket`, `fernando-aragon-huey.service`
 - **Settings module**: `DJANGO_SETTINGS_MODULE=base_feature_project.settings_prod`
