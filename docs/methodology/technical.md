@@ -31,7 +31,7 @@
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| Vite | 6.3.5 | Build tool and dev server |
+| Vite | 7.3.1 | Build tool and dev server |
 | React | 18.3.1 | UI library |
 | TypeScript | 5.5+ | Type-safe JavaScript |
 | React Router | 7.13.0 | Client-side routing |
@@ -283,7 +283,7 @@ fernando_aragon_project/
 │   └── rfc/                             # RFCs for individual tasks
 │
 ├── .windsurf/                            # IDE rules & workflows
-│   ├── rules/                           # 13 rule files + methodology/ (8 files)
+│   ├── rules/                           # 9 rule files + methodology/ (8 files)
 │   └── workflows/                       # 8 workflow files
 │
 ├── .github/workflows/                    # CI (test-quality-gate.yml)

@@ -56,7 +56,13 @@ This file captures important patterns, preferences, and project intelligence tha
 
 ---
 
-## 5. Deployment and Infrastructure
+## 5. AI Tools & Methodology Tooling
+
+- **Deploy skill copied from wrong boilerplate (discovered 2026-04-10)**: `deploy-and-check/SKILL.md` had Nuxt 3 SSG references (`nuxi generate`, `serve_nuxt`, `NUXT_APP_CDN_URL`) despite this project being React + Vite. This came from copying the skill from a Nuxt-based project. When adapting any shared skill template, verify every framework/stack reference against the actual `package.json` and `vite.config.ts`.
+- **`frontend-unit-test-coverage` description had Vue patterns**: The skill description mentioned "Pinia stores, composables" (Vue) instead of React patterns. The `.windsurf/rules/` directory also contained irrelevant Next.js, Jest, and i18n rule files from generic boilerplate. Before shipping a project, audit all `.windsurf/rules/` and `.agents/skills/` files for framework mentions that don't match `package.json`.
+- **`blog-ai-weekly` propagated to this project's docs**: A skill from a sibling project (`projectapp`) appeared in this project's `CODEX_SETUP.md`, `CODEX_MIGRATION_MAP.md`, and `CODEX_METHODOLOGY_GUIDE.md`. When creating project-specific docs from shared templates, grep for skills not in `.agents/skills/` and remove them.
+
+## 6. Deployment and Infrastructure
 
 - **Production DB**: MySQL via env vars. Dev uses SQLite.
 - **Systemd Templates**: `scripts/systemd/huey.service` for Huey worker in production.
@@ -66,7 +72,7 @@ This file captures important patterns, preferences, and project intelligence tha
 
 ---
 
-## 6. System-Specific Knowledge
+## 7. System-Specific Knowledge
 
 - **reCAPTCHA Bypass**: When `RECAPTCHA_SECRET_KEY` is empty, verification returns True (dev mode).
 - **Two Admin URLs**: `/admin/` (custom sections), `/admin-gallery/` (default Django admin). Intentional.

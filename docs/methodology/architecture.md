@@ -5,7 +5,7 @@
 ```mermaid
 flowchart TB
     subgraph Client["Browser (SPA)"]
-        React["React 18 + Vite 6"]
+        React["React 18.3 + Vite 7"]
         RR["React Router 7"]
         TW["TailwindCSS 4"]
         Shadcn["shadcn/ui (46 components)"]

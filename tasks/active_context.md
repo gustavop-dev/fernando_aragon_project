@@ -1,6 +1,6 @@
 # Active Context — Corporación Fernando de Aragón
 
-_Last updated: 2026-03-18 (post-base-project-remnants-cleanup)_
+_Last updated: 2026-04-10 (post-ai-tools-ecosystem-audit)_
 
 ---
 
@@ -17,6 +17,17 @@ The site is in a **production-ready state** for its core purpose (lead capture),
 ---
 
 ## 2. Recent Focus Areas
+
+- **AI Tools Ecosystem Audit (2026-04-10)** — Full cross-file audit and correction of all AI coding-assistant configuration:
+  - `CLAUDE.md`: improved with API endpoint table, settings file structure, linting commands, test fixtures/helpers, and data-files-as-source-of-truth rule
+  - `deploy-and-check/SKILL.md` (both `.agents/` and `.claude/`): replaced wrong Nuxt 3 SSG references with the real React 18.3 + Vite 7 SPA stack
+  - `frontend-unit-test-coverage/SKILL.md` (both copies): replaced "Pinia stores, composables" (Vue) with "React components, hooks, services"
+  - `.windsurf/rules/coverage-report-standard.md`: replaced Jest frontend section with real Vitest v8 config
+  - `.windsurf/rules/`: deleted 4 irrelevant files (nextjs, optimized-nextjs, jest-testing-rules, i18n-rules)
+  - Removed `blog-ai-weekly` skill references from `docs/CODEX_SETUP.md`, `docs/CODEX_MIGRATION_MAP.md`, `docs/CODEX_METHODOLOGY_GUIDE.md`, `docs/claude-code-methodology-setup-guide.md` — this skill is not in this project's `.agents/skills/`
+  - Removed `projectapp` row from cross-project skill inventory table in methodology guide
+  - `technical.md`: corrected Vite version 6.3.5 → 7.3.1; windsurf rules count 13 → 9
+  - `architecture.md`: corrected mermaid node `React 18 + Vite 6` → `React 18.3 + Vite 7`
 
 - **Base Project Remnants Cleanup (2026-03-18)** — Removed leftover config/dependencies/code from the `base_django_react_next_feature` fork:
   - Removed `djangorestframework-simplejwt` from `requirements.txt` (installed but never used)
