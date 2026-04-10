@@ -50,7 +50,6 @@ These skills require explicit invocation — they never run automatically:
 | `deploy-and-check` | `disable-model-invocation: true` + `allow_implicit_invocation: false` |
 | `git-commit` | same |
 | `git-sync` | same |
-| `blog-ai-weekly` | same |
 
 ## Notes
 

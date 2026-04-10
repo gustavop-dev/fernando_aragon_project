@@ -57,8 +57,7 @@ fernando_aragon_project/
 │       ├── human/
 │       ├── git-commit/          ← manual-only
 │       ├── git-sync/            ← manual-only
-│       ├── deploy-and-check/    ← manual-only
-│       └── blog-ai-weekly/      ← manual-only
+│       └── deploy-and-check/    ← manual-only
 ├── backend/
 │   ├── AGENTS.md
 │   └── CLAUDE.md
@@ -89,7 +88,7 @@ fernando_aragon_project/
 | `methodology-setup` | `$methodology-setup` | Initialize or refresh memory-bank files |
 | `test-quality-gate` | `$test-quality-gate` | Fix highest-value test quality issues |
 | `backend-test-coverage` | `$backend-test-coverage` | Reach 100% pytest coverage |
-| `frontend-unit-test-coverage` | `$frontend-unit-test-coverage` | Reach 100% Jest coverage |
+| `frontend-unit-test-coverage` | `$frontend-unit-test-coverage` | Reach 100% Vitest coverage |
 | `frontend-e2e-test-coverage` | `$frontend-e2e-test-coverage` | Playwright flow coverage |
 | `e2e-user-flows-check` | `$e2e-user-flows-check` | Audit E2E coverage gaps |
 | `new-feature-checklist` | `$new-feature-checklist` | Validate fake data and test coverage |
@@ -97,7 +96,7 @@ fernando_aragon_project/
 | `human` | `$human` | Respond in conversational Spanish (non-technical) |
 | `debugme` | `$debugme` | Legacy alias → delegates to `$debug` |
 
-### Manual-only operational skills (4)
+### Manual-only operational skills (3)
 
 These have `disable-model-invocation: true` in SKILL.md and `allow_implicit_invocation: false` in openai.yaml.
 
@@ -106,7 +105,6 @@ These have `disable-model-invocation: true` in SKILL.md and `allow_implicit_invo
 | `git-commit` | Inspect changes, generate message, commit + push |
 | `git-sync` | Fetch/pull with rebase, handle dirty trees |
 | `deploy-and-check` | Full production deploy: pull → build → restart → verify |
-| `blog-ai-weekly` | Create bilingual AI blog post from 10 news sources |
 
 ---
 

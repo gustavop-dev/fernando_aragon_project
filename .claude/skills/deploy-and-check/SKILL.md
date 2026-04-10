@@ -32,7 +32,7 @@ cd /home/ryzepeck/webapps/fernando_aragon_project && git pull origin master
 cd /home/ryzepeck/webapps/fernando_aragon_project/backend && source venv/bin/activate && pip install -r requirements.txt && DJANGO_SETTINGS_MODULE=base_feature_project.settings_prod python manage.py migrate
 ```
 
-4. Build the frontend (Nuxt generate + copy to Django static):
+4. Build the frontend (Vite build + copy to Django static):
 ```bash
 cd /home/ryzepeck/webapps/fernando_aragon_project/frontend && npm ci && npm run build
 ```
@@ -66,7 +66,7 @@ sudo tail -20 /var/log/nginx/error.log
 
 - **Domain**: `fernandodearagon.edu.co` / `www.fernandodearagon.edu.co`
 - **Backend**: Django (`fernando_aragon_project` module), settings selected via `DJANGO_SETTINGS_MODULE=base_feature_project.settings_prod` in systemd unit
-- **Frontend**: Nuxt 3 SSG → `backend/static/frontend/` + Django `serve_nuxt` catch-all view
+- **Frontend**: React 18.3 + Vite 7 SPA → `backend/static/frontend/`
 - **Services**: `fernando_aragon_project.service` (Gunicorn via socket), `fernando_aragon_project.socket`, `fernando-aragon-huey.service`
 - **Nginx**: `/etc/nginx/sites-available/fernando_aragon_project`
 - **Socket**: `/home/ryzepeck/webapps/fernando_aragon_project/fernando_aragon_project.sock`
@@ -84,5 +84,5 @@ rm -rf /home/ryzepeck/webapps/fernando_aragon_project/frontend/node_modules
 ## Notes
 
 - VPS operations scripts live in `/home/ryzepeck/webapps/ops/vps/scripts/`.
-- Frontend uses `npm run build` which runs `nuxi generate` with `NUXT_APP_CDN_URL=/static/frontend/` and copies output to `backend/static/frontend/`.
+- Frontend uses `npm run build` which runs the Vite build and copies output to `backend/static/frontend/`.
 - `DJANGO_SETTINGS_MODULE=base_feature_project.settings_prod` must be set for migrate and collectstatic commands (manage.py defaults to settings_dev).

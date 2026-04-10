@@ -68,7 +68,6 @@ All 17 skills now live at `.agents/skills/<name>/`:
 | `git-commit` | Operations | ✅ |
 | `git-sync` | Operations | ✅ |
 | `deploy-and-check` | Operations | ✅ |
-| `blog-ai-weekly` | Operations | ✅ |
 
 ## Skills NOT Carried Forward
 

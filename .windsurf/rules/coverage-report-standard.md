@@ -1,6 +1,6 @@
 ---
 trigger: model_decision
-description: Coverage report configuration for pytest and Jest. Use when setting up coverage, modifying conftest.py coverage hooks, configuring Jest coverage reporters, or interpreting coverage output.
+description: Coverage report configuration for pytest (backend) and Vitest (frontend). Use when setting up coverage, modifying conftest.py coverage hooks, configuring Vitest coverage reporters, or interpreting coverage output.
 ---
 
 # Backend & Frontend Coverage Report Standard
@@ -61,25 +61,22 @@ source venv/bin/activate && pytest --cov
 
 ---
 
-## Frontend — Jest Coverage
+## Frontend — Vitest Coverage
 
-### Config: `frontend/jest.config.cjs`
+### Config: `frontend/vitest.config.ts`
 
-Key setting: `coverageReporters: ['text', 'text-summary', 'json-summary']`
+Key settings:
+```ts
+coverage: {
+  provider: 'v8',
+  reporter: ['text', 'text-summary', 'json-summary'],
+  include: ['src/app/**/*.{ts,tsx}'],
+  exclude: ['src/app/components/ui/**', 'src/**/*.{test,spec}.{ts,tsx}', 'src/__tests__/**'],
+}
+```
 - `text` → per-file table
 - `text-summary` → Statements/Branches/Functions/Lines totals
-- `json-summary` → writes `coverage/coverage-summary.json` for the custom script
-
-### Custom Reporter: `frontend/scripts/coverage-summary.cjs`
-
-Reads `coverage/coverage-summary.json` after Jest finishes and prints:
-1. **Header + total bar** with progress indicator
-2. **Bucket summary**: count of files >80%, 50-80%, <50%
-3. **Top 10** files with most uncovered statements
-
-**Adaptation points when modifying:**
-- Source path regex: `filePath.replace(/.*\/src\//, 'src/')` — adjust for your source directory
-- Top-N count: `.slice(0, 10)` controls the number of files shown
+- `json-summary` → writes `coverage/coverage-summary.json`
 
 ### Run Command
 
@@ -87,13 +84,12 @@ Reads `coverage/coverage-summary.json` after Jest finishes and prints:
 npm run test:coverage
 ```
 
-This runs: `jest --config jest.config.cjs --coverage && node scripts/coverage-summary.cjs`
+This runs: `vitest run --coverage`
 
-### Report Sections (3 in sequence)
+### Report Sections (2 in sequence)
 
-1. **Jest `text` reporter**: per-file table (Stmts/Branch/Funcs/Lines)
-2. **Jest `text-summary`**: Coverage summary block
-3. **Custom `coverage-summary.cjs`**: progress bar, bucket counts, top-10 uncovered
+1. **Vitest `text` reporter**: per-file table (Stmts/Branch/Funcs/Lines)
+2. **Vitest `text-summary`**: Coverage summary block
 
 ---
 

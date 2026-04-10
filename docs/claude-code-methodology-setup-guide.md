@@ -159,7 +159,6 @@ Estos skills NO llevan `disable-model-invocation`, lo que permite que Claude los
 
 | Skill | Proyecto | `disable-model-invocation` | `allowed-tools` |
 |-------|---------|:-:|---|
-| `blog-ai-weekly` | projectapp | **true** | `Bash, WebSearch, WebFetch` |
 | `server-diagnostic-report` | gym_project | **true** | `Bash` |
 
 ### Formato de un SKILL.md
@@ -385,7 +384,7 @@ update memory files
 
 8. **`disable-model-invocation: true` para operaciones peligrosas** — deploy, git-commit, y cualquier skill que modifique producción o haga push a remoto debe tener este flag. Solo el usuario puede invocarlos con `/project:nombre`.
 
-9. **`allowed-tools` restringe el sandbox** — skills como git-commit y deploy solo necesitan `Bash`. Skills como blog-ai-weekly necesitan `Bash, WebSearch, WebFetch`. No dar herramientas innecesarias.
+9. **`allowed-tools` restringe el sandbox** — skills como git-commit y deploy solo necesitan `Bash`. Skills que acceden a la web necesitan `Bash, WebSearch, WebFetch`. No dar herramientas innecesarias.
 
 ---
 
@@ -393,7 +392,6 @@ update memory files
 
 | Proyecto | Skills | Específicos |
 |----------|:------:|-------------|
-| **projectapp** | 13 | 11 shared + `deploy-and-check` + `blog-ai-weekly` |
 | **gym_project** | 14 | 11 shared + `deploy-and-check` + `deploy-staging` + `server-diagnostic-report` |
 | **kore_project** | 13 | 11 shared + `deploy-and-check` + `deploy-staging` |
 | **fernando_aragon_project** | 13 | 11 shared + `deploy-and-check` + `deploy-staging` |
@@ -401,4 +399,3 @@ update memory files
 | **candle_project** | 12 | 11 shared + `deploy-staging` |
 | **base_django_vue_feature** | 12 | 11 shared + `deploy-staging` |
 | **base_django_react_next_feature** | 12 | 11 shared + `deploy-staging` |
-| **Total** | **101** | |
