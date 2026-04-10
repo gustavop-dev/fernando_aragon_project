@@ -1,462 +1,53 @@
-# Fernando de Aragon — Claude Code Configuration
-
-## Project Identity
-
-- **Name**: Fernando de Aragon (Educational programs/content platform)
-- **Domain**: `fernandodearagon.projectapp.co` / `www.fernandodearagon.projectapp.co`
-- **Stack**: Django + DRF (backend) / React + Vite SPA (frontend) / MySQL 8 / Redis / Huey
-- **Server path**: `/home/ryzepeck/webapps/fernando_aragon_project`
-- **Staging path**: `/home/ryzepeck/webapps/fernando_aragon_project_staging`
-- **Services**: `fernando_aragon_project.service` (Gunicorn), `fernando-aragon-huey.service`
-- **Settings module**: `DJANGO_SETTINGS_MODULE=fernando_aragon_project.settings_prod`
-
----
-
-## General Rules
-
-These should be respected ALWAYS:
-1. Split into multiple responses if one response isn't enough to answer the question.
-2. IMPROVEMENTS and FURTHER PROGRESSIONS:
-- S1: Suggest ways to improve code stability or scalability.
-- S2: Offer strategies to enhance performance or security.
-- S3: Recommend methods for improving readability or maintainability.
-- Recommend areas for further investigation
-
----
-
-## Security Rules — OWASP / Secrets / Input Validation
-
-### Secrets and Environment Variables
-
-NEVER hardcode secrets. Always use environment variables.
-
-```python
-# ✅ Django — use env vars
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
-DATABASE_URL = os.environ['DATABASE_URL']
-STRIPE_API_KEY = os.environ['STRIPE_SECRET_KEY']
-
-# ❌ NEVER do this
-SECRET_KEY = 'django-insecure-abc123xyz'
-DATABASE_URL = 'mysql://root:password123@localhost/mydb'
-```
-
-```typescript
-// ✅ React + Vite — use env vars
-const apiUrl = import.meta.env.VITE_API_URL  // client-safe, VITE_ prefix required
-const secretKey = process.env.API_SECRET_KEY  // server-only (not available in browser)
-
-// ❌ NEVER do this
-const API_KEY = 'sk-live-abc123xyz'
-fetch('https://api.stripe.com/v1/charges', {
-  headers: { Authorization: 'Bearer sk-live-abc123xyz' }
-})
-```
-
-### .env rules
-
-- `.env` files MUST be in `.gitignore`. Always verify before committing
-- Use `.env.example` with placeholder values for documentation
-- Separate env files per environment: `.env.local`, `.env.staging`, `.env.production`
-- Server secrets (API keys, DB passwords) NEVER go in client-side env vars
-- In Vite: only `VITE_*` vars are exposed to the browser
-
-### Input Validation
-
-NEVER trust user input. Validate on both server AND client.
-
-#### Django/DRF
-
-```python
-# ✅ Serializer validates input
-class OrderSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    quantity = serializers.IntegerField(min_value=1, max_value=100)
-    product_id = serializers.IntegerField()
-
-    def validate_product_id(self, value):
-        if not Product.objects.filter(id=value, is_active=True).exists():
-            raise serializers.ValidationError('Product not found')
-        return value
-
-# ❌ Using raw request data
-def create_order(request):
-    product_id = request.data['product_id']  # no validation
-    Order.objects.create(product_id=product_id)  # SQL injection risk
-```
-
-#### React
-
-```typescript
-// ✅ Validate before sending
-import { z } from 'zod'
-
-const orderSchema = z.object({
-  email: z.string().email(),
-  quantity: z.number().int().min(1).max(100),
-  productId: z.number().int().positive(),
-})
-
-const handleSubmit = (data: unknown) => {
-  const result = orderSchema.safeParse(data)
-  if (!result.success) {
-    setErrors(result.error.flatten().fieldErrors)
-    return
-  }
-  await submitOrder(result.data)
-}
-```
-
-### SQL Injection Prevention
-
-```python
-# ✅ Django ORM — always safe
-users = User.objects.filter(email=user_input)
-
-# ✅ If raw SQL is needed, use parameterized queries
-from django.db import connection
-with connection.cursor() as cursor:
-    cursor.execute("SELECT * FROM users WHERE email = %s", [user_input])
-
-# ❌ NEVER interpolate user input into SQL
-cursor.execute(f"SELECT * FROM users WHERE email = '{user_input}'")
-```
-
-### XSS Prevention
-
-```typescript
-// ✅ React auto-escapes by default — JSX is safe
-return <p>{userInput}</p>
-
-// ❌ NEVER use dangerouslySetInnerHTML with user input
-return <div dangerouslySetInnerHTML={{ __html: userInput }} />
-
-// If you MUST render HTML, sanitize first
-import DOMPurify from 'dompurify'
-const clean = DOMPurify.sanitize(userInput)
-```
-
-### CSRF Protection
-
-```python
-# ✅ Django — CSRF middleware is on by default, keep it
-MIDDLEWARE = [
-    'django.middleware.csrf.CsrfViewMiddleware',  # NEVER remove
-    ...
-]
-
-# ✅ DRF — use SessionAuthentication or JWT
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-}
-
-# ❌ NEVER disable CSRF globally
-@csrf_exempt  # only for webhooks from external services with signature verification
-```
-
-### Authentication and Authorization
-
-```python
-# ✅ Always check permissions
-from rest_framework.permissions import IsAuthenticated
-
-class OrderViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        # Users can only see their own orders
-        return Order.objects.filter(user=self.request.user)
-```
-
-### Sensitive Data Exposure
-
-```python
-# ✅ Exclude sensitive fields from serializers
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'name']
-        # password, tokens, internal IDs are excluded
-
-# ❌ Exposing everything
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = '__all__'  # leaks password hash, tokens, etc.
-```
-
-### HTTP Security Headers (Django)
-
-```python
-# settings.py — enable all security headers
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
-SECURE_HSTS_SECONDS = 31536000  # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_SSL_REDIRECT = True  # in production
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-```
-
-### Dependency Security
-
-- Run `pip audit` (Python) and `npm audit` (Node) regularly
-- Never use `*` for dependency versions — pin exact versions
-- Review new dependencies before adding them
-- Keep dependencies updated, especially security patches
-
-### File Upload Security
-
-```python
-# ✅ Validate file type and size
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf'}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
-
-def validate_upload(file):
-    ext = Path(file.name).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise ValidationError(f'File type {ext} not allowed')
-    if file.size > MAX_FILE_SIZE:
-        raise ValidationError('File too large')
-```
-
-### Security Checklist — Before Every Deployment
-
-- [ ] No secrets in code or git history
-- [ ] `.env` is in `.gitignore`
-- [ ] All user input is validated (server + client)
-- [ ] No raw SQL with user input
-- [ ] No `dangerouslySetInnerHTML` with user data
-- [ ] CSRF protection enabled
-- [ ] Authentication required on all sensitive endpoints
-- [ ] Serializers exclude sensitive fields
-- [ ] Security headers configured
-- [ ] `pip audit` / `npm audit` clean
-- [ ] File uploads validated
-- [ ] DEBUG = False in production
-- [ ] ALLOWED_HOSTS configured properly
-
----
-
-## Memory Bank System
-
-This project uses a Memory Bank system to maintain context across sessions. The core files are:
-
-```mermaid
-flowchart TD
-    PB[product_requirement_docs.md] --> PC[technical.md]
-    PB --> SP[architecture.md]
-    SP --> TC[tasks_plan.md]
-    PC --> TC
-    PB --> TC
-    TC --> AC[active_context.md]
-    AC --> ER[error-documentation.md]
-    AC --> LL[lessons-learned.md]
-    subgraph LIT[ docs/literature ]
-        L1[...]
-        L2[...]
-    end
-    subgraph RFC[ tasks/rfc/ ]
-        R1[...]
-        R2[...]
-    end
-    PC --o LIT
-    TC --o RFC
-```
-
-### Core Files (Required)
-
-| # | File | Purpose |
-|---|------|---------|
-| 1 | `docs/methodology/product_requirement_docs.md` | PRD: why this project exists, core requirements, scope |
-| 2 | `docs/methodology/architecture.md` | System architecture, component relationships, Mermaid diagrams |
-| 3 | `docs/methodology/technical.md` | Tech stack, dev setup, design patterns, technical constraints |
-| 4 | `tasks/tasks_plan.md` | Task backlog, progress tracking, known issues |
-| 5 | `tasks/active_context.md` | Current work focus, recent changes, next steps |
-| 6 | `docs/methodology/error-documentation.md` | Known errors, their context, and resolutions |
-| 7 | `docs/methodology/lessons-learned.md` | Project intelligence, patterns, preferences |
-
-### Context Files (Optional)
-
-- `docs/literature/` — Literature survey and research (LaTeX files)
-- `tasks/rfc/` — RFCs for individual tasks (LaTeX files)
-
-### When to Read Memory Files
-
-- Before significant implementation tasks, read the relevant core files
-- Before planning tasks, read `docs/methodology/` and `tasks/`
-- When debugging, check `docs/methodology/error-documentation.md` for previously solved issues
-
-### When to Update Memory Files
-
-1. After discovering new project patterns
-2. After implementing significant changes
-3. When the user requests with **update memory files** (review ALL core files)
-4. When context needs clarification
-5. After a significant part of a plan is verified
-
-Focus particularly on `tasks/active_context.md` and `tasks/tasks_plan.md` as they track current state. And `docs/methodology/architecture.md` has a section of current workflow that also gets updated by any code changes.
-
----
-
-## Directory Structure
-
-```mermaid
-flowchart TD
-    Root[Project Root]
-    Root --> Backend[backend/]
-    Root --> Frontend[frontend/]
-    Root --> Docs[docs/]
-    Root --> Tasks[tasks/]
-    Root --> Scripts[scripts/]
-    Root --> Claude[.claude/skills/]
-    Root --> GitHub[.github/workflows/]
-
-    Backend --> BApp[fernando_aragon/ — Django app]
-    Backend --> BProject[fernando_aragon_project/ — Django project]
-    Backend --> BServices[services/ — Business logic layer]
-    Backend --> BModels[models/ — Split model files]
-    Backend --> BUrls[urls/ — Split per domain, aggregated in __init__.py]
-
-    Frontend --> FSrc[src/]
-    FSrc --> FPages[pages/]
-    FSrc --> FComponents[components/]
-    FSrc --> FStores[stores/]
-    Frontend --> FE2E[e2e/ — Playwright]
-    Frontend --> FTest[tests/ — Vitest]
-
-    Docs --> Methodology[methodology/]
-    Tasks --> ActiveCtx[active_context.md]
-    Tasks --> TasksPlan[tasks_plan.md]
-
-    Claude --> CSkills[plan, implement, debug, deploy, git-commit, etc.]
-```
-
----
-
-## Testing Rules
-
-### Execution Constraints
-
-- **Never run the full test suite** — always specify files
-- **Maximum per execution**: 20 tests per batch, 3 commands per cycle
-- **Backend**: Always activate venv first: `source venv/bin/activate && pytest path/to/test_file.py -v`
-- **Frontend unit**: `npm test -- path/to/file.spec.ts`
-- **E2E**: max 2 files per `npx playwright test` invocation
-- Use `E2E_REUSE_SERVER=1` when dev server is already running
-
-### Quality Standards
-
-Full reference: `docs/TESTING_QUALITY_STANDARDS.md`
-
-- Each test verifies **ONE specific behavior**
-- **No conjunctions** in test names — split into separate tests
-- Assert **observable outcomes** (status codes, DB state, rendered UI)
-- **No conditionals** in test body — use parameterization
-- Follow **AAA pattern**: Arrange → Act → Assert
-- Mock only at **system boundaries** (external APIs, clock, email)
-
----
-
-## Lessons Learned — Fernando de Aragon
-
-### Architecture Patterns
-
-#### Custom User Model
-- Uses `email` as `USERNAME_FIELD` instead of the default `username`
-- All authentication flows reference email, not username
-
-#### Static Data over Database
-- 15 program definitions live in TypeScript files (`programs.ts`, `curriculum.ts`)
-- No database tables for program/curriculum content — all frontend-driven
-- Changes to programs require frontend rebuild, not database migrations
-
-#### Service Layer Pattern
-- Business logic lives in `services/`, not in views
-- Views are thin FBV wrappers that call service methods
-
-#### Custom AdminSite
-- `BaseFeatureAdminSite` replaces the default Django admin
-- Dual admin URLs: `/admin/` (custom) and `/admin-gallery/` (default Django)
-
-#### URL Organization
-- Separate URL files per domain, aggregated in `urls/__init__.py`
-- Keeps route definitions modular and maintainable
-
-### Code Style & Conventions
-
-#### Backend: Function-Based Views (FBV)
-- **All** DRF views use `@api_view` decorators, not class-based views
-- Never convert to CBV unless explicitly requested
-
-#### Documentation Style
-- Google-style docstrings with `Args`/`Returns`/`Raises` sections
-- Spanish UI text, English documentation and code comments
-
-#### Settings Split
-- Settings hierarchy: `base` → `dev` → `prod`
-- Environment variable validation in production settings
-- Feature flags via env vars (e.g., `ENABLE_SILK`)
-
-### Frontend Patterns
-
-#### React + Vite SPA
-- Vite path aliases: `@` maps to `src/`
-- TailwindCSS 4 with `@tailwindcss/vite` plugin
-- Montserrat font family
-- Color palette: purple `#29235C`, gold `#F9B233`, green `#2FAC66`
-
-#### reCAPTCHA Bypass in Development
-- Empty `RECAPTCHA_SECRET_KEY` returns `True` in dev environment
-- No external service dependency for local development
-
-### Development Workflow
-
-#### Backend Commands Always Need venv
-```bash
-source venv/bin/activate && <command>
-```
-
-#### Huey Immediate Mode in Development
-- When `DJANGO_ENV != 'production'`, Huey tasks execute synchronously
-- No need to run Redis or Huey worker for development
-- Requires Redis in production
-
-### Production Deployment
-
-#### Build Flow
-1. Frontend: Vite build → generates static assets
-2. Backend: `python manage.py collectstatic` → copies to staticfiles
-3. Restart: `sudo systemctl restart fernando_aragon_project && sudo systemctl restart fernando-aragon-huey`
-
-### Testing Insights
-
-- **Backend**: 12 test files, 108 tests, 100% coverage
-- **Frontend**: 16 test files with Vitest + @testing-library/react, 114 tests
-- **E2E**: 6 specs, 17 tests, 6/6 flows covered with Playwright
-
-### Methodology Maintenance
-
-- Memory Bank based on [rules_template](https://github.com/Bhartendu-Kumar/rules_template)
-- Refresh memory files after adding a new Django app, significant test changes, or when file counts drift >10%
-
----
-
-## Error Documentation — Fernando de Aragon
-
-### Known Issues
-
-No documented errors. This is a clean project with no outstanding issues.
-
-### Resolved Issues
-
-_(None documented yet)_
+# Fernando Aragón — Claude Compatibility Guide
+
+## Source Of Truth
+- The canonical repo guidance is maintained in the Codex-native surfaces: `AGENTS.md`, `backend/AGENTS.md`, `frontend/AGENTS.md`, `.agents/skills/*`, `.codex/config.toml`.
+- This `CLAUDE.md` file is a compatibility mirror for mixed-tool teams and should stay aligned with the Codex guidance.
+- Long-lived project context lives in `docs/methodology/` and `tasks/`.
+
+## Project Overview
+- **What it is**: an educational/institutional landing site for Fernando Aragón school (`fernandodearagon.edu.co`). The visible product is the React SPA; the backend exists almost exclusively to serve a contact form and a reCAPTCHA verification endpoint.
+- **Stack**: Django 6.0.2 + DRF (backend) / **React 18.3 + Vite 7 + TypeScript 5.5** (frontend) / MySQL / Redis / Huey / SMTP email.
+- **Single Django app**: `base_feature_app`. Django module name is **`base_feature_project`** (a generic boilerplate name). Settings module: `base_feature_project.settings_prod`.
+- **Production path**: `/home/ryzepeck/webapps/fernando_aragon_project`.
+- **Domain**: `fernandodearagon.edu.co`.
+- **Services**: `fernando_aragon_project.service`, `fernando-aragon-huey.service`. Socket: `/home/ryzepeck/webapps/fernando_aragon_project/fernando_aragon_project.sock`.
+- The frontend Vite build emits to `backend/static/frontend/` and is served by Django.
+
+## Architecture Invariants
+- **Backend views are 100% function-based** with `@api_view`. There are only 3 endpoints: `submit_contact_form`, `verify_captcha`, `get_site_key`. Do not introduce CBV/`APIView`/`ViewSets`.
+- **Service layer**: email logic lives in `base_feature_app/services/email_service.py`. Do not inline `send_mail()` calls into views.
+- **Custom email-based User**: `User(AbstractBaseUser, PermissionsMixin)` with email as the username field. Roles `CUSTOMER`/`ADMIN` exist but only `ADMIN` is actively used.
+- **Frontend uses React 18 + Vite + TypeScript**. **NOT React 19**, **NOT Next.js**.
+- **No state management library**: state is `useState` only. There is no Zustand, Redux, or global Context.
+- **HTTP**: native `fetch` (no Axios). Single API helper at `frontend/src/app/services/api.ts`. Base URL via `import.meta.env.VITE_API_URL`.
+- **Bilingual via duplicated routes**: there is **no i18n framework**. Spanish content lives at `/`, English at `/ingles`. Both are React components with content forked.
+- **shadcn/ui + Material UI + Radix**: a mixed UI library setup. shadcn components live in `frontend/src/app/components/ui/`. Material UI is also pulled in via `@mui/material`.
+- **Conditional Silk** profiling: gated by `ENABLE_SILK=True`. Off by default.
+
+## Working Rules
+- Prefer existing project patterns over generic framework advice.
+- Do not rename `base_feature_project` or `base_feature_app` to `fernando_aragon_*` — they are intentionally generic.
+- Do not introduce a state management library or i18n framework unless the user explicitly asks. The current scope is small and `useState` + duplicated routes is sufficient.
+- Do not change old migrations; add new migrations when schema changes are required.
+- Keep security basics intact: validated serializer inputs, ORM-first queries, escaped rendering, secure cookies, no secrets in code.
+- Do not edit files inside `backend/static/frontend/` — they are Vite build artifacts.
+- New email types should be added as methods on `EmailService`, not inlined.
+
+## Commands
+- Backend tests: `cd backend && source venv/bin/activate && pytest base_feature_app/tests/path/to/test_file.py -v`
+- Backend dev server: `cd backend && source venv/bin/activate && python manage.py runserver`
+- Frontend dev server: `cd frontend && npm run dev` (Vite, default :5173)
+- Frontend unit tests (Vitest): `cd frontend && npm test -- path/to/file.test.tsx`
+- Frontend E2E (Playwright): `cd frontend && npm run e2e -- path/to/spec.ts`
+- Frontend build: `cd frontend && npm run build`
+
+## Testing Constraints
+- Never run the full test suite.
+- Maximum 20 tests per batch and 3 test commands per cycle.
+- Run only the smallest backend, frontend unit, or E2E slice needed for the changed behavior.
+
+## Memory Bank
+- Core files: `docs/methodology/{product_requirement_docs,architecture,technical,error-documentation,lessons-learned}.md`, `tasks/{tasks_plan,active_context}.md`.
+- Update memory files when the user asks, or when you have verified a meaningful change to runtime surfaces, architecture, or recurring workflow guidance.
+- Do not churn memory files after every routine code edit.
