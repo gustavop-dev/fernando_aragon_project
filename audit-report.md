@@ -134,8 +134,64 @@ python3 -m venv .venv-audit
 
 ## Updates Applied
 
-(To be filled in after Section D — apply patch+minor updates.)
+### Frontend
+`npm audit fix` cleared all 6 advisories without breaking changes. Then `npx npm-check-updates -u --target minor` was applied and `npm install` regenerated the lockfile.
+
+Notable upgrades:
+- vite 7.3.1 -> 7.3.2 (patches 3 CVEs)
+- transitive: `lodash`, `picomatch`, `postcss`, `yaml`, `brace-expansion` resolved via npm fix
+- @mui/material & @mui/icons-material 7.3.5 -> 7.3.10
+- All @radix-ui/react-* primitives bumped to latest minor within their major
+- @playwright/test 1.58.2 -> 1.59.1
+- @tailwindcss/vite & tailwindcss 4.1.12 -> 4.2.4
+- @types/node 25.5.0 -> 25.6.0; @types/react 18.3 -> 18.3.28; @types/react-dom 18.3 -> 18.3.7
+- @vitest/coverage-v8 & vitest 4.1.0 -> 4.1.5
+- jsdom 29.0.0 -> 29.1.1
+- lucide-react 0.487.0 -> 0.577.0 (still in 0.x; no major)
+- motion 12.23.24 -> 12.38.0
+- react-hook-form 7.55.0 -> 7.74.0
+- react-resizable-panels 2.1.7 -> 2.1.9
+- react-router 7.13.0 -> 7.14.2
+- recharts 2.15.2 -> 2.15.4
+- sonner 2.0.3 -> 2.0.7
+- swiper 12.1.3 -> 12.1.4
+- tailwind-merge 3.2.0 -> 3.5.0
+- tw-animate-css 1.3.8 -> 1.4.0
+- typescript ^5.5.0 -> ^5.9.3 (range bump within 5.x)
+- typescript-eslint 8.57.1 -> 8.59.1
+
+Post-update audit: **0 vulnerabilities** (`found 0 vulnerabilities`).
+
+### Backend
+Pinned versions bumped in `backend/requirements.txt`:
+- Django 6.0.2 -> 6.0.4 (resolves CVE-2026-25674, 25673, 33033, 33034, 4292, 4277, 3902)
+- djangorestframework 3.16.1 -> 3.17.1
+- python-dotenv 1.2.1 -> 1.2.2 (resolves CVE-2026-28684)
+- Faker 40.5.1 -> 40.15.0
+- pillow 12.1.1 -> 12.2.0 (resolves CVE-2026-40192)
+- pytest 9.0.2 -> 9.0.3 (resolves CVE-2025-71176)
+- pytest-cov 7.0.0 -> 7.1.0
+- coverage 7.13.4 -> 7.13.5
+- ruff 0.15.2 -> 0.15.12
+- requests 2.32.5 -> 2.33.1 (resolves CVE-2026-25645)
+
+Post-update `pip-audit -r requirements.txt`: **No known vulnerabilities found**.
 
 ## Build / Tests / Rollbacks
 
-(To be filled in after Section E — verification.)
+### Frontend
+- `npm run build`: PASS (vite 7.3.2 build, 2210 modules transformed, 11.74s).
+- `npm run test` (Vitest): PASS — **114/114 tests** in 16 files.
+- `npm run lint`: not defined in package.json (skipped per spec).
+
+### Backend
+- `python manage.py check`: PASS — System check identified no issues (0 silenced).
+- `pytest`: 102 passed, 6 failed.
+  - Failures are confined to `base_feature_app/tests/commands/test_tasks.py::test_weekly_slow_queries_report_*`.
+  - **Verified pre-existing on origin/master**: same 6 tests fail when reverting to the original `requirements.txt` (Django 6.0.2 etc.) and running pytest from a clean venv. The failure is unrelated to the dependency upgrade — it is a test-fixture/path issue with `silk-weekly-report.log` not being created under the patched silk mocks. Documented but not addressed by this audit branch (out of scope).
+
+### Rollbacks
+None. All patch+minor upgrades were retained. No package was rolled back.
+
+### Notes / Skipped Majors
+Per policy, all major bumps were skipped (see "Majors Skipped" section above). The 6 pre-existing pytest failures in `test_tasks.py` are NOT regressions introduced by this audit and should be triaged separately.
