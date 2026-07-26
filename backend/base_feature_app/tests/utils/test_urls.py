@@ -33,17 +33,41 @@ def test_module_urls_py_is_executable():
     assert len(names) >= 1
 
 
-def test_health_check_returns_json_ok():
-    """GET /api/health/ returns JSON with status 'ok'."""
+def test_health_check_returns_json_ok(settings, monkeypatch):
+    """GET /api/health/ reports status plus the project and environment that answered."""
+    import json
+
     from base_feature_project.urls import health_check
 
     request = RequestFactory().get('/api/health/')
+
+    settings.DJANGO_ENV = 'production'
     response = health_check(request)
 
     assert response.status_code == 200
     assert response['Content-Type'] == 'application/json'
-    import json
-    assert json.loads(response.content) == {'status': 'ok'}
+    # Catches a probe that cannot tell WHO answered: without 'project' and
+    # 'environment' a shared codebase returns an identical payload from every
+    # deployment, so a staging box impersonating prod goes unnoticed.
+    assert json.loads(response.content) == {
+        'status': 'ok',
+        'project': settings.BASE_DIR.parent.name,
+        'environment': 'production',
+    }
+
+    # The reading must come from settings, not the process environment:
+    # DJANGO_ENV lives in backend/.env (read by decouple) and the systemd units
+    # never export it, so an os.getenv-only lookup reports 'development' on a
+    # production box.
+    monkeypatch.setenv('DJANGO_ENV', 'development')
+
+    assert json.loads(health_check(request).content)['environment'] == 'production'
+
+    # os.getenv is only the fallback, for a settings module without DJANGO_ENV.
+    del settings.DJANGO_ENV
+    monkeypatch.setenv('DJANGO_ENV', 'staging')
+
+    assert json.loads(health_check(request).content)['environment'] == 'staging'
 
 
 @override_settings(DEBUG=True, MEDIA_URL='/media/', MEDIA_ROOT='/tmp/test-media/')
