@@ -110,8 +110,8 @@
 | Architecture | `docs/methodology/architecture.md` | ✅ Done |
 | Active Context | `tasks/active_context.md` | ✅ Done |
 | Tasks Plan | `tasks/tasks_plan.md` | ✅ Done (this file) |
-| Lessons Learned | `.windsurf/rules/methodology/lessons-learned.md` | ✅ Initialized |
-| Error Documentation | `.windsurf/rules/methodology/error-documentation.md` | ✅ Initialized |
+| Lessons Learned | `docs/methodology/lessons-learned.md` | ✅ Initialized |
+| Error Documentation | `docs/methodology/error-documentation.md` | ✅ Initialized |
 
 ---
 
