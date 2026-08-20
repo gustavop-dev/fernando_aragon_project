@@ -282,10 +282,6 @@ fernando_aragon_project/
 ├── tasks/                                # Task tracking
 │   └── rfc/                             # RFCs for individual tasks
 │
-├── .windsurf/                            # IDE rules & workflows
-│   ├── rules/                           # 9 rule files + methodology/ (8 files)
-│   └── workflows/                       # 8 workflow files
-│
 ├── .github/workflows/                    # CI (test-quality-gate.yml)
 ├── .pre-commit-config.yaml              # Pre-commit hooks
 ├── .gitignore
