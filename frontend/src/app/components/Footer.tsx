@@ -78,7 +78,7 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <Phone size={18} className="text-[#F9B233] mt-0.5 shrink-0" />
                 <div className="text-white/70 text-[14px]">
-                  <div>(605) 656 0903</div>
+                  <div>301 7049497</div>
                   <div>315 776 6662</div>
                 </div>
               </li>
