@@ -68,7 +68,7 @@ describe('Navbar', () => {
   it('renders top bar with phone numbers and address', () => {
     renderNavbar();
 
-    expect(screen.getByText('(605) 656 0903')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '301 7049497' })).toHaveAttribute('href', 'tel:+573017049497');
     expect(screen.getByText('315 776 6662')).toBeInTheDocument();
     expect(screen.getByText(/Pie de la Popa/)).toBeInTheDocument();
   });

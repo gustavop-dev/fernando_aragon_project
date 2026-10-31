@@ -45,9 +45,9 @@ export default function Navbar() {
       <div className="bg-[#29235C] text-white/80 hidden md:block" style={{ fontFamily: "Montserrat, sans-serif" }}>
         <div className="max-w-7xl mx-auto px-6 py-2 flex justify-between items-center text-[12px]">
           <div className="flex items-center gap-6">
-            <a href="tel:+576560903" className="flex items-center gap-2 hover:text-[#F9B233] transition-colors">
+            <a href="tel:+573017049497" className="flex items-center gap-2 hover:text-[#F9B233] transition-colors">
               <Phone size={12} />
-              <span>(605) 656 0903</span>
+              <span>301 7049497</span>
             </a>
             <a href="tel:+573157766662" className="flex items-center gap-2 hover:text-[#F9B233] transition-colors">
               <Phone size={12} />
