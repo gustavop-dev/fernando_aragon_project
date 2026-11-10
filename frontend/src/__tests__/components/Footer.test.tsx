@@ -65,7 +65,7 @@ describe('Footer', () => {
     expect(screen.getByText('Contáctenos')).toBeInTheDocument();
     expect(screen.getByText(/Pie de la Popa/)).toBeInTheDocument();
     expect(screen.getByText('301 7049497')).toBeInTheDocument();
-    expect(screen.getByText('info@fernandoaragon.edu.co')).toBeInTheDocument();
+    expect(screen.getByText('info@fernandodearagon.edu.co')).toBeInTheDocument();
     expect(screen.getByText(/7:00 AM - 9:30 PM/)).toBeInTheDocument();
   });
 

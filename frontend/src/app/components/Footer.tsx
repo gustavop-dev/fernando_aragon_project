@@ -84,7 +84,7 @@ export default function Footer() {
               </li>
               <li className="flex items-start gap-3">
                 <Mail size={18} className="text-[#F9B233] mt-0.5 shrink-0" />
-                <span className="text-white/70 text-[14px]">info@fernandoaragon.edu.co</span>
+                <span className="text-white/70 text-[14px]">info@fernandodearagon.edu.co</span>
               </li>
               <li className="flex items-start gap-3">
                 <Clock size={18} className="text-[#F9B233] mt-0.5 shrink-0" />
