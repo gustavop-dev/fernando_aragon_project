@@ -1,5 +1,7 @@
 """Tests for Huey tasks: scheduled_backup, silk_garbage_collection, weekly_slow_queries_report."""
 
+from datetime import datetime, timezone
+
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -69,7 +71,14 @@ def test_silk_garbage_collection_calls_command_with_seven_days():
 # weekly_slow_queries_report
 # ---------------------------------------------------------------------------
 
-def test_weekly_slow_queries_report_skips_when_silk_disabled(settings, tmp_path):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
+@pytest.fixture
+def report_date(monkeypatch):
+    now = datetime(2026, 1, 15, tzinfo=timezone.utc)
+    monkeypatch.setattr('base_feature_project.tasks.timezone.now', lambda: now)
+    return now
+
+
+def test_weekly_slow_queries_report_skips_when_silk_disabled(settings, tmp_path, report_date):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
     """weekly_slow_queries_report returns early without writing a log when ENABLE_SILK is False."""
     settings.ENABLE_SILK = False
     settings.BASE_DIR = tmp_path
@@ -77,11 +86,11 @@ def test_weekly_slow_queries_report_skips_when_silk_disabled(settings, tmp_path)
 
     weekly_slow_queries_report.call_local()
 
-    assert not (tmp_path / 'logs' / 'silk-weekly-report.log').exists()
+    assert not (tmp_path / 'logs' / 'silk-reports' / f'silk-report-{report_date:%Y-%m-%d}.log').exists()
 
 
-def test_weekly_slow_queries_report_creates_log_file(settings, tmp_path):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
-    """weekly_slow_queries_report creates the log file under BASE_DIR/logs/ when ENABLE_SILK is True."""
+def test_weekly_slow_queries_report_creates_log_file(settings, tmp_path, report_date):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
+    """weekly_slow_queries_report creates the dated log file under BASE_DIR/logs/silk-reports/ when ENABLE_SILK is True."""
     settings.ENABLE_SILK = True
     settings.SLOW_QUERY_THRESHOLD_MS = 500
     settings.N_PLUS_ONE_THRESHOLD = 10
@@ -95,10 +104,10 @@ def test_weekly_slow_queries_report_creates_log_file(settings, tmp_path):  # qua
         from base_feature_project.tasks import weekly_slow_queries_report
         weekly_slow_queries_report.call_local()
 
-    assert (tmp_path / 'logs' / 'silk-weekly-report.log').exists()
+    assert (tmp_path / 'logs' / 'silk-reports' / f'silk-report-{report_date:%Y-%m-%d}.log').exists()
 
 
-def test_weekly_slow_queries_report_log_contains_header(settings, tmp_path):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
+def test_weekly_slow_queries_report_log_contains_header(settings, tmp_path, report_date):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
     """The generated log file contains the WEEKLY QUERY REPORT header."""
     settings.ENABLE_SILK = True
     settings.SLOW_QUERY_THRESHOLD_MS = 500
@@ -113,11 +122,11 @@ def test_weekly_slow_queries_report_log_contains_header(settings, tmp_path):  # 
         from base_feature_project.tasks import weekly_slow_queries_report
         weekly_slow_queries_report.call_local()
 
-    content = (tmp_path / 'logs' / 'silk-weekly-report.log').read_text()
+    content = (tmp_path / 'logs' / 'silk-reports' / f'silk-report-{report_date:%Y-%m-%d}.log').read_text()
     assert 'WEEKLY QUERY REPORT' in content
 
 
-def test_weekly_slow_queries_report_no_slow_queries_message(settings, tmp_path):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
+def test_weekly_slow_queries_report_no_slow_queries_message(settings, tmp_path, report_date):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
     """Report contains the 'No slow queries found' message when there are no slow queries."""
     settings.ENABLE_SILK = True
     settings.SLOW_QUERY_THRESHOLD_MS = 500
@@ -132,11 +141,11 @@ def test_weekly_slow_queries_report_no_slow_queries_message(settings, tmp_path):
         from base_feature_project.tasks import weekly_slow_queries_report
         weekly_slow_queries_report.call_local()
 
-    content = (tmp_path / 'logs' / 'silk-weekly-report.log').read_text()
+    content = (tmp_path / 'logs' / 'silk-reports' / f'silk-report-{report_date:%Y-%m-%d}.log').read_text()
     assert 'No slow queries found this week' in content
 
 
-def test_weekly_slow_queries_report_no_n_plus_one_message(settings, tmp_path):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
+def test_weekly_slow_queries_report_no_n_plus_one_message(settings, tmp_path, report_date):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
     """Report contains the 'No N+1 patterns detected' message when there are no N+1 suspects."""
     settings.ENABLE_SILK = True
     settings.SLOW_QUERY_THRESHOLD_MS = 500
@@ -151,11 +160,11 @@ def test_weekly_slow_queries_report_no_n_plus_one_message(settings, tmp_path):  
         from base_feature_project.tasks import weekly_slow_queries_report
         weekly_slow_queries_report.call_local()
 
-    content = (tmp_path / 'logs' / 'silk-weekly-report.log').read_text()
+    content = (tmp_path / 'logs' / 'silk-reports' / f'silk-report-{report_date:%Y-%m-%d}.log').read_text()
     assert 'No N+1 patterns detected this week' in content
 
 
-def test_weekly_slow_queries_report_includes_slow_query_data(settings, tmp_path):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
+def test_weekly_slow_queries_report_includes_slow_query_data(settings, tmp_path, report_date):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
     """Report includes the endpoint path and duration of each detected slow query."""
     settings.ENABLE_SILK = True
     settings.SLOW_QUERY_THRESHOLD_MS = 500
@@ -181,12 +190,12 @@ def test_weekly_slow_queries_report_includes_slow_query_data(settings, tmp_path)
         from base_feature_project.tasks import weekly_slow_queries_report
         weekly_slow_queries_report.call_local()
 
-    content = (tmp_path / 'logs' / 'silk-weekly-report.log').read_text()
+    content = (tmp_path / 'logs' / 'silk-reports' / f'silk-report-{report_date:%Y-%m-%d}.log').read_text()
     assert '/api/contact/submit/' in content
     assert '1200ms' in content
 
 
-def test_weekly_slow_queries_report_includes_n_plus_one_suspects(settings, tmp_path):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
+def test_weekly_slow_queries_report_includes_n_plus_one_suspects(settings, tmp_path, report_date):  # quality: disable global_state_mutation (pytest-django settings fixture auto-restores)
     """Report includes the endpoint path and query count of each detected N+1 suspect."""
     settings.ENABLE_SILK = True
     settings.SLOW_QUERY_THRESHOLD_MS = 500
@@ -208,7 +217,7 @@ def test_weekly_slow_queries_report_includes_n_plus_one_suspects(settings, tmp_p
         from base_feature_project.tasks import weekly_slow_queries_report
         weekly_slow_queries_report.call_local()
 
-    content = (tmp_path / 'logs' / 'silk-weekly-report.log').read_text()
+    content = (tmp_path / 'logs' / 'silk-reports' / f'silk-report-{report_date:%Y-%m-%d}.log').read_text()
     assert '/api/google-captcha/verify/' in content
     assert '25 queries' in content
 

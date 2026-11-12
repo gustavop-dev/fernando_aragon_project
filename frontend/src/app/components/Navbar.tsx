@@ -66,6 +66,7 @@ export default function Navbar() {
 
       {/* Main navbar */}
       <motion.nav
+        data-hosting-offset="top"
         className={`sticky top-0 z-50 transition-all duration-500 ${
           scrolled
             ? "bg-white/95 backdrop-blur-xl shadow-lg shadow-[#29235C]/5"
@@ -182,7 +183,7 @@ export default function Navbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 top-24 z-40 bg-white overflow-y-auto"
+            data-hosting-offset="menu" className="fixed inset-0 top-24 z-40 bg-white overflow-y-auto"
             style={{ fontFamily: "Montserrat, sans-serif" }}
           >
             <div className="flex flex-col gap-2 p-6">

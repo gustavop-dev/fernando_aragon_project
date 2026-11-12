@@ -58,8 +58,7 @@ if ENABLE_SILK:
 AUTH_USER_MODEL = 'base_feature_app.User'
 
 
-MIDDLEWARE = [
-    'hosting_guard.middleware.HostingControlMiddleware',]
+MIDDLEWARE = []
 if ENABLE_SILK:
     MIDDLEWARE.append('silk.middleware.SilkyMiddleware')
 MIDDLEWARE += [
