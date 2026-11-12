@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify flow-definitions ↔ E2E @flow: tags
+      - name: "Verify flow-definitions ↔ E2E @flow: tags"
         working-directory: frontend
         run: node scripts/check-flow-definitions-sync.mjs
 
@@ -124,7 +124,7 @@ jobs:
   # Job 3: Frontend E2E coverage (Playwright + flow reporter)
   # ──────────────────────────────────────────────────────────────────
   frontend-e2e-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout

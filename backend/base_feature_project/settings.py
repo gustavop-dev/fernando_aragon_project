@@ -63,6 +63,7 @@ if ENABLE_SILK:
     MIDDLEWARE.append('silk.middleware.SilkyMiddleware')
 MIDDLEWARE += [
     'django.middleware.security.SecurityMiddleware',
+    'hosting_guard.middleware.HostingControlMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -337,3 +338,9 @@ if ENABLE_SILK:
 
 SLOW_QUERY_THRESHOLD_MS = config('SLOW_QUERY_THRESHOLD_MS', default=500, cast=int)
 N_PLUS_ONE_THRESHOLD = config('N_PLUS_ONE_THRESHOLD', default=10, cast=int)
+
+# PA-264: only opt in on the enrolled production, never staging or DEV.
+HOSTING_CONTROL_ENABLED = config('HOSTING_CONTROL_ENABLED', default=False, cast=bool)
+HOSTING_CONTROL_TARGET = config('HOSTING_CONTROL_TARGET', default='')
+HOSTING_CONTROL_STATE_FILE = config('HOSTING_CONTROL_STATE_FILE', default='')
+HOSTING_CONTROL_EXEMPT_PATHS = ('/api/', '/admin/', '/admin-gallery/', '/health/')

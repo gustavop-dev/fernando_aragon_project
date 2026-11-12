@@ -1,3 +1,5 @@
+> **PA-264:** adaptador de hosting preparado y apagado por defecto. QA manual y servicios permanecen pausados; no acredita consumo en producción. Véase `docs/HOSTING_CONTROL.md`.
+
 # Active Context — Corporación Fernando de Aragón
 
 _Last updated: 2026-04-10 (post-ai-tools-ecosystem-audit)_

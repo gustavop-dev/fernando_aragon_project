@@ -1,7 +1,7 @@
 import os
 
 from django.http import JsonResponse
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.contrib import admin
 from base_feature_app.admin import admin_site
@@ -36,3 +36,7 @@ if getattr(settings, 'ENABLE_SILK', False):
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Deployed nginx routes SPA documents here; assets remain served normally.
+from .frontend import frontend
+urlpatterns += [re_path(r'^(?P<path>.*)$', frontend, name='frontend')]
